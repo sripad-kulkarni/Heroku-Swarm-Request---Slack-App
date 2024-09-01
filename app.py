@@ -137,7 +137,7 @@ def handle_swarm_request(ack, body):
                         },
                         "element": {
                             "type": "plain_text_input",
-                            "multiline": true,
+                            "multiline": True,
                             "action_id": "issue_description_input"
                         }
                     },
@@ -150,7 +150,7 @@ def handle_swarm_request(ack, body):
                         },
                         "element": {
                             "type": "plain_text_input",
-                            "multiline": true,
+                            "multiline": True,
                             "action_id": "help_required_input"
                         }
                     },
@@ -360,7 +360,7 @@ def handle_create_request_button(ack, body):
                         },
                         "element": {
                             "type": "plain_text_input",
-                            "multiline": true,
+                            "multiline": True,
                             "action_id": "issue_description_input"
                         }
                     },
@@ -373,7 +373,7 @@ def handle_create_request_button(ack, body):
                         },
                         "element": {
                             "type": "plain_text_input",
-                            "multiline": true,
+                            "multiline": True,
                             "action_id": "help_required_input"
                         }
                     },
