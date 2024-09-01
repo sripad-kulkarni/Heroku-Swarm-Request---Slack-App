@@ -106,7 +106,9 @@ def handle_swarm_request(ack, body, client):
                     "element": {"type": "plain_text_input", "multiline": True, "action_id": "help_required_input"},
                     "label": {"type": "plain_text", "text": "Help Required"}
                 }
-            ]
+            ],
+            # Add a hidden input field to store the original channel ID
+            "private_metadata": body["channel_id"]
         }
     )
 
@@ -118,7 +120,9 @@ def handle_modal_submission(ack, body, view, client):
     # Extract data from the form submission
     values = view["state"]["values"]
     user_id = body["user"]["id"]
-    # Channel ID is not available in the view submission body, so use `body["user"]["id"]` to mention the user directly.
+    # Retrieve the original channel ID from private_metadata
+    original_channel_id = view["private_metadata"]
+
     ticket = values["ticket"]["ticket_input"]["value"]
     entitlement = values["entitlement"]["entitlement_select"]["selected_option"]["value"]
     skill_group = values["skill_group"]["skill_group_select"]["selected_option"]["value"]
@@ -126,9 +130,6 @@ def handle_modal_submission(ack, body, view, client):
     priority = values["priority"]["priority_select"]["selected_option"]["value"]
     issue_description = values["issue_description"]["issue_description_input"]["value"]
     help_required = values["help_required"]["help_required_input"]["value"]
-
-    # Find the original channel ID where the slash command was invoked (pass it in the form data)
-    original_channel_id = body.get("channel_id")  # Update this if you store channel_id elsewhere in the form data
 
     # Post the swarm request details to the channel
     try:
