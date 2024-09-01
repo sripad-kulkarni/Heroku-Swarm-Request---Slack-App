@@ -118,7 +118,7 @@ def handle_modal_submission(ack, body, view, client):
     # Extract data from the form submission
     values = view["state"]["values"]
     user_id = body["user"]["id"]
-    channel_id = body["channel"]["id"]
+    # Channel ID is not available in the view submission body, so use `body["user"]["id"]` to mention the user directly.
     ticket = values["ticket"]["ticket_input"]["value"]
     entitlement = values["entitlement"]["entitlement_select"]["selected_option"]["value"]
     skill_group = values["skill_group"]["skill_group_select"]["selected_option"]["value"]
@@ -127,10 +127,13 @@ def handle_modal_submission(ack, body, view, client):
     issue_description = values["issue_description"]["issue_description_input"]["value"]
     help_required = values["help_required"]["help_required_input"]["value"]
 
+    # Find the original channel ID where the slash command was invoked (pass it in the form data)
+    original_channel_id = body.get("channel_id")  # Update this if you store channel_id elsewhere in the form data
+
     # Post the swarm request details to the channel
     try:
         client.chat_postMessage(
-            channel=channel_id,
+            channel=original_channel_id,
             text=f"New Swarm Request submitted by <@{user_id}>:\n"
                  f"Ticket: {ticket}\n"
                  f"Entitlement: {entitlement}\n"
