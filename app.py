@@ -1,12 +1,9 @@
 import os
 import psycopg2
-import json
 from urllib.parse import urlparse
 from slack_bolt import App
 from slack_sdk.errors import SlackApiError
 from slack_sdk.web import WebClient
-from slack_sdk.socket_mode import SocketModeClient
-from slack_sdk.socket_mode.response import SocketModeResponse
 
 # Initialize the Slack app
 app = App(token=os.environ.get("SLACK_BOT_TOKEN"))
@@ -30,8 +27,12 @@ def get_db_connection():
 @app.command("/swarmrequest")
 def handle_swarm_request(ack, body):
     ack()
-    trigger_id = body["trigger_id"]
+    trigger_id = body.get("trigger_id")
     
+    if not trigger_id:
+        print("Error: Missing trigger_id")
+        return
+
     try:
         client.views_open(
             trigger_id=trigger_id,
@@ -173,38 +174,40 @@ def handle_swarm_request(ack, body):
     except SlackApiError as e:
         print(f"Error opening modal: {e.response['error']}")
 
-
 # Handle modal submissions
 @app.view("swarm_request_form")
 def handle_modal_submission(ack, body):
     ack()
-    # Extract user input from modal submission
-    ticket = body["view"]["state"]["values"]["ticket_block"]["ticket_input"]["value"]
-    entitlement = body["view"]["state"]["values"]["entitlement_block"]["entitlement_select"]["selected_option"]["value"]
-    skill_group = body["view"]["state"]["values"]["skill_group_block"]["skill_group_select"]["selected_option"]["value"]
-    support_tier = body["view"]["state"]["values"]["support_tier_block"]["support_tier_select"]["selected_option"]["value"]
-    priority = body["view"]["state"]["values"]["priority_block"]["priority_select"]["selected_option"]["value"]
-    issue_description = body["view"]["state"]["values"]["issue_description_block"]["issue_description_input"]["value"]
-    help_required = body["view"]["state"]["values"]["help_required_block"]["help_required_input"]["value"]
+    try:
+        values = body["view"]["state"]["values"]
+        ticket = values["ticket_block"]["ticket_input"]["value"]
+        entitlement = values["entitlement_block"]["entitlement_select"]["selected_option"]["value"]
+        skill_group = values["skill_group_block"]["skill_group_select"]["selected_option"]["value"]
+        support_tier = values["support_tier_block"]["support_tier_select"]["selected_option"]["value"]
+        priority = values["priority_block"]["priority_select"]["selected_option"]["value"]
+        issue_description = values["issue_description_block"]["issue_description_input"]["value"]
+        help_required = values["help_required_block"]["help_required_input"]["value"]
 
-    # Save to database
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute(
-        "INSERT INTO swarm_requests (ticket, entitlement, skill_group, support_tier, priority, issue_description, help_required) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-        (ticket, entitlement, skill_group, support_tier, priority, issue_description, help_required)
-    )
-    conn.commit()
-    cur.close()
-    conn.close()
+        # Save to database
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO swarm_requests (ticket, entitlement, skill_group, support_tier, priority, issue_description, help_required) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            (ticket, entitlement, skill_group, support_tier, priority, issue_description, help_required)
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
 
-    # Post a confirmation message to the same channel
-    user_id = body["user"]["id"]
-    channel_id = body["view"]["private_metadata"]
-    client.chat_postMessage(
-        channel=channel_id,
-        text=f"Thank you <@{user_id}>! Your swarm request has been submitted."
-    )
+        # Post a confirmation message to the same channel
+        user_id = body["user"]["id"]
+        # You may want to change this to a specific channel or dynamically get the channel from the body
+        client.chat_postMessage(
+            channel=body["user"]["id"],  # Adjust based on actual channel information
+            text=f"Thank you <@{user_id}>! Your swarm request has been submitted."
+        )
+    except KeyError as e:
+        print(f"Error processing submission: {e}")
 
 # Handle app home page view
 @app.event("app_home_opened")
@@ -248,7 +251,12 @@ def handle_app_home_opened(event, client):
 @app.action("create_request_button")
 def handle_create_request_button(ack, body):
     ack()
-    trigger_id = body["trigger_id"]
+    trigger_id = body.get("trigger_id")
+    
+    if not trigger_id:
+        print("Error: Missing trigger_id")
+        return
+
     try:
         client.views_open(
             trigger_id=trigger_id,
@@ -392,4 +400,15 @@ def handle_create_request_button(ack, body):
 
 # Start the app
 if __name__ == "__main__":
+    import socket_mode
+    import slack_sdk
+    import logging
+    
+    logging.basicConfig(level=logging.INFO)
+    
+    handler = socket_mode.AppHandler(
+        app=app,
+        client=client
+    )
+    
     app.start(port=int(os.environ.get("PORT", 3000)))
