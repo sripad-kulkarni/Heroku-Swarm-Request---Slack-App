@@ -1,13 +1,15 @@
 import os
-import logging
 import psycopg2
 from slack_bolt import App
+from slack_bolt.adapter.socket_mode import SocketModeHandler
 
 # Initialize the Slack app
 app = App(token=os.environ.get("SLACK_BOT_TOKEN"))
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
+# Function to get a database connection
+def get_db_connection():
+    conn = psycopg2.connect(os.environ["DATABASE_URL"])
+    return conn
 
 # Handle the slash command
 @app.command("/swarmrequest")
@@ -107,12 +109,11 @@ def handle_swarm_request(ack, body, client):
                     "element": {"type": "plain_text_input", "multiline": True, "action_id": "help_required_input"},
                     "label": {"type": "plain_text", "text": "Help Required"}
                 }
-            ],
-            # Add a hidden input field to store the original channel ID
-            "private_metadata": body["channel_id"]
+            ]
         }
     )
 
+# Handle modal submission
 @app.view("swarm_request_form")
 def handle_modal_submission(ack, body, view, client):
     ack()
@@ -125,10 +126,10 @@ def handle_modal_submission(ack, body, view, client):
     priority = view["state"]["values"]["priority"]["priority_select"]["selected_option"]["value"]
     issue_description = view["state"]["values"]["issue_description"]["issue_description_input"]["value"]
     help_required = view["state"]["values"]["help_required"]["help_required_input"]["value"]
-    
-    # Get the channel ID from the context
+
+    # Get the channel ID from the private metadata
     channel_id = body["view"]["private_metadata"]
-    
+
     # Post message to the channel
     try:
         client.chat_postMessage(
@@ -144,7 +145,7 @@ def handle_modal_submission(ack, body, view, client):
         )
     except Exception as e:
         print(f"Error posting message: {e}")
-    
+
     # Store the form data in the database
     conn = get_db_connection()
     cur = conn.cursor()
@@ -162,7 +163,6 @@ def handle_modal_submission(ack, body, view, client):
     finally:
         cur.close()
         conn.close()
-
 
 # Start the app
 if __name__ == "__main__":
