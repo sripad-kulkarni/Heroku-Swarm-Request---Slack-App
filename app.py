@@ -201,7 +201,6 @@ def handle_modal_submission(ack, body):
 
         # Post a confirmation message to the same channel
         user_id = body["user"]["id"]
-        # You may want to change this to a specific channel or dynamically get the channel from the body
         client.chat_postMessage(
             channel=body["user"]["id"],  # Adjust based on actual channel information
             text=f"Thank you <@{user_id}>! Your swarm request has been submitted."
@@ -400,15 +399,4 @@ def handle_create_request_button(ack, body):
 
 # Start the app
 if __name__ == "__main__":
-    import socket_mode
-    import slack_sdk
-    import logging
-    
-    logging.basicConfig(level=logging.INFO)
-    
-    handler = socket_mode.AppHandler(
-        app=app,
-        client=client
-    )
-    
     app.start(port=int(os.environ.get("PORT", 3000)))
