@@ -112,30 +112,27 @@ def handle_swarm_request(ack, body, client):
         }
     )
 
-# Handle modal submission
 @app.view("swarm_request_form")
 def handle_modal_submission(ack, body, view, client):
     ack()
 
-    # Extract data from the form submission
-    values = view["state"]["values"]
-    user_id = body["user"]["id"]
-    # Retrieve the original channel ID from private_metadata
-    original_channel_id = view["private_metadata"]
-
-    ticket = values["ticket"]["ticket_input"]["value"]
-    entitlement = values["entitlement"]["entitlement_select"]["selected_option"]["value"]
-    skill_group = values["skill_group"]["skill_group_select"]["selected_option"]["value"]
-    support_tier = values["support_tier"]["support_tier_select"]["selected_option"]["value"]
-    priority = values["priority"]["priority_select"]["selected_option"]["value"]
-    issue_description = values["issue_description"]["issue_description_input"]["value"]
-    help_required = values["help_required"]["help_required_input"]["value"]
-
-    # Post the swarm request details to the channel
+    # Extract values from the modal submission
+    ticket = view["state"]["values"]["ticket"]["ticket_input"]["value"]
+    entitlement = view["state"]["values"]["entitlement"]["entitlement_select"]["selected_option"]["value"]
+    skill_group = view["state"]["values"]["skill_group"]["skill_group_select"]["selected_option"]["value"]
+    support_tier = view["state"]["values"]["support_tier"]["support_tier_select"]["selected_option"]["value"]
+    priority = view["state"]["values"]["priority"]["priority_select"]["selected_option"]["value"]
+    issue_description = view["state"]["values"]["issue_description"]["issue_description_input"]["value"]
+    help_required = view["state"]["values"]["help_required"]["help_required_input"]["value"]
+    
+    # Get the channel ID from the context
+    channel_id = body["view"]["private_metadata"]
+    
+    # Post message to the channel
     try:
         client.chat_postMessage(
-            channel=original_channel_id,
-            text=f"New Swarm Request submitted by <@{user_id}>:\n"
+            channel=channel_id,
+            text=f"*New Swarm Request*\n"
                  f"Ticket: {ticket}\n"
                  f"Entitlement: {entitlement}\n"
                  f"Skill Group: {skill_group}\n"
@@ -145,7 +142,26 @@ def handle_modal_submission(ack, body, view, client):
                  f"Help Required: {help_required}"
         )
     except Exception as e:
-        logging.error(f"Error posting message: {e}")
+        print(f"Error posting message: {e}")
+    
+    # Store the form data in the database
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """
+            INSERT INTO swarm_requests (ticket, entitlement, skill_group, support_tier, priority, issue_description, help_required)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """,
+            (ticket, entitlement, skill_group, support_tier, priority, issue_description, help_required)
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"Error storing data in database: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
 
 # Start the app
 if __name__ == "__main__":
