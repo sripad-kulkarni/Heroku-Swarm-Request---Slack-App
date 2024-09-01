@@ -4,26 +4,26 @@ from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 import os
 import psycopg2
-from psycopg2 import sql
+from urllib.parse import urlparse
 from datetime import datetime, timedelta
 import schedule
 import threading
 import time
-from flask import Flask, request, jsonify
 
-# Initialize the Flask app and Slack Bolt app
-flask_app = Flask(__name__)
+# Initialize the Slack Bolt app
 app = App(token=os.environ.get("SLACK_BOT_TOKEN"), signing_secret=os.environ.get("SLACK_SIGNING_SECRET"))
 client = WebClient(token=os.environ.get("SLACK_BOT_TOKEN"))
 
-# Connect to PostgreSQL
+# Connect to PostgreSQL using DATABASE_URL
 def get_db_connection():
+    database_url = os.environ.get("DATABASE_URL")
+    parsed_url = urlparse(database_url)
     conn = psycopg2.connect(
-        dbname=os.environ.get("DB_NAME"),
-        user=os.environ.get("DB_USER"),
-        password=os.environ.get("DB_PASSWORD"),
-        host=os.environ.get("DB_HOST"),
-        port=os.environ.get("DB_PORT")
+        dbname=parsed_url.path[1:],  # remove the leading '/'
+        user=parsed_url.username,
+        password=parsed_url.password,
+        host=parsed_url.hostname,
+        port=parsed_url.port
     )
     return conn
 
@@ -202,10 +202,13 @@ def handle_modal_submission(ack, body, client):
         ]
     )
 
-    # Set up a reminder for unresolved requests
-    schedule.every().day.at("09:00").do(check_unresolved_requests)
+    # Set up a reminder
+    reminder_text = f"Reminder: Swarm request with ID {swarm_request_id} has been created."
+    client.chat_postMessage(
+        channel=channel_id,
+        text=reminder_text
+    )
 
-# Handle button actions
 @app.action("resolve_swarm")
 def handle_resolve_swarm(ack, body, client):
     ack()
@@ -386,16 +389,9 @@ def schedule_jobs():
         schedule.run_pending()
         time.sleep(1)
 
-# Set up the Flask app to serve as the entry point for Heroku
-@flask_app.route("/", methods=["POST"])
-def slack_events():
-    # Handle incoming events from Slack
-    if request.headers.get('X-Slack-Signature') and request.headers.get('X-Slack-Request-Timestamp'):
-        return jsonify({"status": "ok"}), 200
-    else:
-        return jsonify({"status": "invalid request"}), 400
-
-# Start the Flask app and schedule jobs
 if __name__ == "__main__":
+    # Start the scheduler in a separate thread
     threading.Thread(target=schedule_jobs).start()
-    flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 3000)))
+
+    # Start the Slack Bolt app with SocketModeHandler
+    app.start(port=int(os.environ.get("PORT", 3000)))
