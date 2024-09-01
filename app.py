@@ -4,11 +4,6 @@ from slack_bolt import App
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 import psycopg2
-from psycopg2 import sql
-import schedule
-import time
-from datetime import datetime, timedelta
-from apscheduler.schedulers.background import BackgroundScheduler
 
 # Initialize the Slack app
 app = App(token=os.environ.get("SLACK_BOT_TOKEN"))
@@ -53,7 +48,7 @@ def create_tables():
 
 create_tables()
 
-# Function to handle modal submission
+# Handle modal submission
 @app.view("swarm_request_form")
 def handle_modal_submission(ack, body, view, client):
     ack()
@@ -61,7 +56,7 @@ def handle_modal_submission(ack, body, view, client):
     # Extract data from the form submission
     values = view["state"]["values"]
     user_id = body["user"]["id"]
-    channel_id = body["channel"]["id"]  # Channel ID is obtained from the body
+    channel_id = body["channel"]["id"]
     ticket = values["ticket"]["ticket_input"]["value"]
     entitlement = values["entitlement"]["entitlement_select"]["selected_option"]["value"]
     skill_group = values["skill_group"]["skill_group_select"]["selected_option"]["value"]
@@ -237,44 +232,6 @@ def handle_reopen_action(ack, body, client):
             }
         ]
     )
-
-# Handle reminders
-def check_pending_requests():
-    with conn.cursor() as cursor:
-        cursor.execute("""
-            SELECT id, user_id, channel_id, created_at
-            FROM swarm_requests
-            WHERE status = 'Pending' AND created_at < %s;
-        """, (datetime.now() - timedelta(days=1),))
-        requests = cursor.fetchall()
-
-    for request in requests:
-        request_id, user_id, channel_id, created_at = request
-        message = f"Reminder: Swarm request <@{user_id}> from {created_at} is still pending."
-        app.client.chat_postMessage(
-            channel=channel_id,
-            text=message,
-            attachments=[
-                {
-                    "text": "Still need help?",
-                    "fallback": "You are unable to choose an action",
-                    "callback_id": f"reminder_{request_id}",
-                    "actions": [
-                        {
-                            "name": "still_need_help",
-                            "text": "Still Need Help?",
-                            "type": "button",
-                            "value": "still_need_help"
-                        }
-                    ]
-                }
-            ]
-        )
-
-# Schedule reminders
-scheduler = BackgroundScheduler()
-scheduler.add_job(check_pending_requests, 'interval', hours=24)
-scheduler.start()
 
 # Start the app
 if __name__ == "__main__":
