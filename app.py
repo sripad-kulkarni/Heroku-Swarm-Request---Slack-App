@@ -1,5 +1,6 @@
 import os
 import logging
+import psycopg2
 from slack_bolt import App
 
 # Initialize the Slack app
