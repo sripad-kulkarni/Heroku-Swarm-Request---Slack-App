@@ -54,7 +54,8 @@ def handle_swarm_request(ack, body):
                         "element": {
                             "type": "plain_text_input",
                             "action_id": "ticket_input"
-                        }
+                        },
+                        "optional": False
                     },
                     {
                         "type": "input",
@@ -72,7 +73,8 @@ def handle_swarm_request(ack, body):
                                 {"text": {"type": "plain_text", "text": "Enterprise Standard"}, "value": "enterprise_standard"},
                                 {"text": {"type": "plain_text", "text": "Online Customer"}, "value": "online_customer"}
                             ]
-                        }
+                        },
+                        "optional": False
                     },
                     {
                         "type": "input",
@@ -91,7 +93,8 @@ def handle_swarm_request(ack, body):
                                 {"text": {"type": "plain_text", "text": "Account Management"}, "value": "account_management"},
                                 {"text": {"type": "plain_text", "text": "Other"}, "value": "other"}
                             ]
-                        }
+                        },
+                        "optional": False
                     },
                     {
                         "type": "input",
@@ -107,7 +110,8 @@ def handle_swarm_request(ack, body):
                                 {"text": {"type": "plain_text", "text": "High Complexity"}, "value": "high_complexity"},
                                 {"text": {"type": "plain_text", "text": "General Usage"}, "value": "general_usage"}
                             ]
-                        }
+                        },
+                        "optional": False
                     },
                     {
                         "type": "input",
@@ -126,7 +130,8 @@ def handle_swarm_request(ack, body):
                                 {"text": {"type": "plain_text", "text": "Normal"}, "value": "normal"},
                                 {"text": {"type": "plain_text", "text": "Low"}, "value": "low"}
                             ]
-                        }
+                        },
+                        "optional": False
                     },
                     {
                         "type": "input",
@@ -139,7 +144,8 @@ def handle_swarm_request(ack, body):
                             "type": "plain_text_input",
                             "multiline": True,
                             "action_id": "issue_description_input"
-                        }
+                        },
+                        "optional": False
                     },
                     {
                         "type": "input",
@@ -152,7 +158,8 @@ def handle_swarm_request(ack, body):
                             "type": "plain_text_input",
                             "multiline": True,
                             "action_id": "help_required_input"
-                        }
+                        },
+                        "optional": False
                     },
                     {
                         "type": "actions",
@@ -173,6 +180,7 @@ def handle_swarm_request(ack, body):
         )
     except SlackApiError as e:
         print(f"Error opening modal: {e.response['error']}")
+
 
 # Handle modal submissions
 @app.view("swarm_request_form")
