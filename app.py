@@ -1,16 +1,13 @@
 import os
+import logging
 import psycopg2
 from slack_bolt import App
-from slack_bolt.adapter.socket_mode import SocketModeHandler
-import logging
 
-# Initialize the app with your bot token and socket mode handler
+# Initialize the Slack app
 app = App(token=os.environ.get("SLACK_BOT_TOKEN"))
 
-# Database connection function
-def get_db_connection():
-    conn = psycopg2.connect(os.environ.get("DATABASE_URL"))
-    return conn
+# Set up logging
+logging.basicConfig(level=logging.INFO)
 
 # Handle the slash command
 @app.command("/swarmrequest")
@@ -110,34 +107,33 @@ def handle_swarm_request(ack, body, client):
                     "element": {"type": "plain_text_input", "multiline": True, "action_id": "help_required_input"},
                     "label": {"type": "plain_text", "text": "Help Required"}
                 }
-            ]
+            ],
+            # Add a hidden input field to store the original channel ID
+            "private_metadata": body["channel_id"]
         }
     )
 
-# Handle the modal submission
 @app.view("swarm_request_form")
-def handle_modal_submission(ack, body, client):
+def handle_modal_submission(ack, body, view, client):
     ack()
+
+    # Extract values from the modal submission
+    ticket = view["state"]["values"]["ticket"]["ticket_input"]["value"]
+    entitlement = view["state"]["values"]["entitlement"]["entitlement_select"]["selected_option"]["value"]
+    skill_group = view["state"]["values"]["skill_group"]["skill_group_select"]["selected_option"]["value"]
+    support_tier = view["state"]["values"]["support_tier"]["support_tier_select"]["selected_option"]["value"]
+    priority = view["state"]["values"]["priority"]["priority_select"]["selected_option"]["value"]
+    issue_description = view["state"]["values"]["issue_description"]["issue_description_input"]["value"]
+    help_required = view["state"]["values"]["help_required"]["help_required_input"]["value"]
     
-    # Extract values from the submission
-    values = body["view"]["state"]["values"]
-    
-    ticket = values["ticket"]["ticket_input"]["value"]
-    entitlement = values["entitlement"]["entitlement_select"]["selected_option"]["value"]
-    skill_group = values["skill_group"]["skill_group_select"]["selected_option"]["value"]
-    support_tier = values["support_tier"]["support_tier_select"]["selected_option"]["value"]
-    priority = values["priority"]["priority_select"]["selected_option"]["value"]
-    issue_description = values["issue_description"]["issue_description_input"]["value"]
-    help_required = values["help_required"]["help_required_input"]["value"]
-    
-    # Retrieve the channel ID where the modal was opened
+    # Get the channel ID from the context
     channel_id = body["view"]["private_metadata"]
     
+    # Post message to the channel
     try:
-        # Post a message to the channel
         client.chat_postMessage(
             channel=channel_id,
-            text=f"New Swarm Request:\n"
+            text=f"*New Swarm Request*\n"
                  f"Ticket: {ticket}\n"
                  f"Entitlement: {entitlement}\n"
                  f"Skill Group: {skill_group}\n"
@@ -147,7 +143,26 @@ def handle_modal_submission(ack, body, client):
                  f"Help Required: {help_required}"
         )
     except Exception as e:
-        logging.error(f"Error posting message: {e}")
+        print(f"Error posting message: {e}")
+    
+    # Store the form data in the database
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """
+            INSERT INTO swarm_requests (ticket, entitlement, skill_group, support_tier, priority, issue_description, help_required)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """,
+            (ticket, entitlement, skill_group, support_tier, priority, issue_description, help_required)
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"Error storing data in database: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
 
 # Start the app
 if __name__ == "__main__":
