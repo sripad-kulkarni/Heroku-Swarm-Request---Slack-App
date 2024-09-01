@@ -30,7 +30,6 @@ def get_db_connection():
 def handle_swarm_request(ack, body, client):
     ack()
     trigger_id = body["trigger_id"]
-    user_id = body["user_id"]
     channel_id = body["channel_id"]
 
     client.views_open(
@@ -147,8 +146,8 @@ def handle_modal_submission(ack, body, client):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
-        sql.SQL("INSERT INTO swarm_requests (ticket, entitlement, skill_group, support_tier, priority, issue_description, help_required, user_id, channel_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id"),
-        [ticket, entitlement, skill_group, support_tier, priority, issue_description, help_required, user_id, channel_id]
+        sql.SQL("INSERT INTO swarm_requests (ticket, entitlement, skill_group, support_tier, priority, issue_description, help_required, user_id, channel_id, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id"),
+        [ticket, entitlement, skill_group, support_tier, priority, issue_description, help_required, user_id, channel_id, datetime.utcnow()]
     )
     swarm_request_id = cursor.fetchone()[0]
     conn.commit()
@@ -190,29 +189,26 @@ def handle_modal_submission(ack, body, client):
                         "type": "button",
                         "text": {"type": "plain_text", "text": "Resolve Swarm"},
                         "action_id": "resolve_swarm",
-                        "style": "primary"
+                        "style": "primary",
+                        "value": f"resolve_{swarm_request_id}"
                     },
                     {
                         "type": "button",
                         "text": {"type": "plain_text", "text": "Discard Swarm"},
                         "action_id": "discard_swarm",
-                        "style": "danger"
+                        "style": "danger",
+                        "value": f"discard_{swarm_request_id}"
                     }
                 ]
             }
         ]
     )
 
-    # Update the database with the message timestamp
-    message_ts = result["ts"]
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        sql.SQL("UPDATE swarm_requests SET message_ts = %s WHERE id = %s"),
-        [message_ts, swarm_request_id]
-    )
-    conn.commit()
-    cursor.close()
-    conn.close()
+# Handle button actions
+@app.action("resolve_swarm")
+def handle_resolve_swarm(ack, body, client):
+    ack()
+    swarm_request_id = body["actions"][0]["value"].split("_")[1]
+    message_ts = body["message"]["ts"]
+    channel_id = body["channel"]["id"]
 
-# Handle interactive
