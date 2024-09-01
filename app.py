@@ -9,6 +9,15 @@ app = App(token=os.environ.get("SLACK_BOT_TOKEN"))
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 
+# Database connection function
+def get_db_connection():
+    try:
+        conn = psycopg2.connect(os.environ.get("DATABASE_URL"))
+        return conn
+    except Exception as e:
+        logging.error(f"Error connecting to the database: {e}")
+        raise
+
 # Handle the slash command
 @app.command("/swarmrequest")
 def handle_swarm_request(ack, body, client):
