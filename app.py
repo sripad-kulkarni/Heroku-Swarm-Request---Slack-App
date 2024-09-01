@@ -53,5 +53,4 @@ def handle_swarm_request(ack, body, client):
 
 if __name__ == "__main__":
     # Initialize the Socket Mode handler to listen for events
-    handler = SocketModeHandler(app, os.environ["SLACK_APP_TOKEN"])
-    handler.start()
+    app.start(port=int(os.environ.get("PORT", 3000)))
