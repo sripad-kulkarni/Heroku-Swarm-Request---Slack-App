@@ -109,7 +109,60 @@ def handle_swarm_request(ack, body, client):
         }
     )
 
-# Start the app on the specified port
+# Handle modal submissions
+@app.view("swarm_request_form")
+def handle_modal_submission(ack, body, client):
+    # Acknowledge the view submission
+    ack()
+    
+    # Extract submitted values
+    values = body["view"]["state"]["values"]
+    ticket = values["ticket"]["ticket_input"]["value"]
+    entitlement = values["entitlement"]["entitlement_select"]["selected_option"]["value"]
+    skill_group = values["skill_group"]["skill_group_select"]["selected_option"]["value"]
+    support_tier = values["support_tier"]["support_tier_select"]["selected_option"]["value"]
+    priority = values["priority"]["priority_select"]["selected_option"]["value"]
+    issue_description = values["issue_description"]["issue_description_input"]["value"]
+    help_required = values["help_required"]["help_required_input"]["value"]
+    
+    # Post the form data to the channel
+    client.chat_postMessage(
+        channel=body["user"]["id"],
+        text=f"Swarm Request:\n"
+             f"Ticket: {ticket}\n"
+             f"Entitlement: {entitlement}\n"
+             f"Skill Group: {skill_group}\n"
+             f"Support Tier: {support_tier}\n"
+             f"Priority: {priority}\n"
+             f"Issue Description: {issue_description}\n"
+             f"Help Required: {help_required}\n",
+        attachments=[
+            {
+                "text": "Actions:",
+                "fallback": "You are unable to choose an action",
+                "callback_id": "swarm_actions",
+                "color": "#3AA3E3",
+                "attachment_type": "default",
+                "actions": [
+                    {
+                        "name": "resolve",
+                        "text": "Resolve Swarm",
+                        "type": "button",
+                        "value": "resolve",
+                        "style": "primary"
+                    },
+                    {
+                        "name": "discard",
+                        "text": "Discard Swarm",
+                        "type": "button",
+                        "value": "discard",
+                        "style": "danger"
+                    }
+                ]
+            }
+        ]
+    )
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 3000))
     app.start(port=port)
