@@ -22,165 +22,107 @@ def get_db_connection():
         port=url.port
     )
     return conn
-
-# Open the modal
+# Handle the slash command
 @app.command("/swarmrequest")
-def handle_swarm_request(ack, body):
+def handle_swarm_request(ack, body, client):
+    # Acknowledge the command request immediately
     ack()
-    trigger_id = body.get("trigger_id")
-    
-    if not trigger_id:
-        print("Error: Missing trigger_id")
-        return
 
-    try:
-        client.views_open(
-            trigger_id=trigger_id,
-            view={
-                "type": "modal",
-                "callback_id": "swarm_request_form",
-                "title": {
-                    "type": "plain_text",
-                    "text": "Swarm Request"
+    # Open a modal with fields for the swarm request
+    client.views_open(
+        trigger_id=body["trigger_id"],
+        view={
+            "type": "modal",
+            "callback_id": "swarm_request_form",
+            "title": {"type": "plain_text", "text": "Create Swarm Request"},
+            "submit": {"type": "plain_text", "text": "Submit"},
+            "close": {"type": "plain_text", "text": "Cancel"},
+            "blocks": [
+                {
+                    "type": "input",
+                    "block_id": "ticket",
+                    "element": {"type": "plain_text_input", "action_id": "ticket_input"},
+                    "label": {"type": "plain_text", "text": "Ticket"}
                 },
-                "blocks": [
-                    {
-                        "type": "input",
-                        "block_id": "ticket_block",
-                        "label": {
-                            "type": "plain_text",
-                            "text": "Ticket"
-                        },
-                        "element": {
-                            "type": "plain_text_input",
-                            "action_id": "ticket_input"
-                        },
-                        "optional": False
-                    },
-                    {
-                        "type": "input",
-                        "block_id": "entitlement_block",
-                        "label": {
-                            "type": "plain_text",
-                            "text": "Entitlement"
-                        },
-                        "element": {
-                            "type": "static_select",
-                            "action_id": "entitlement_select",
-                            "options": [
-                                {"text": {"type": "plain_text", "text": "Enterprise Signature"}, "value": "enterprise_signature"},
-                                {"text": {"type": "plain_text", "text": "Enterprise Premier"}, "value": "enterprise_premier"},
-                                {"text": {"type": "plain_text", "text": "Enterprise Standard"}, "value": "enterprise_standard"},
-                                {"text": {"type": "plain_text", "text": "Online Customer"}, "value": "online_customer"}
-                            ]
-                        },
-                        "optional": False
-                    },
-                    {
-                        "type": "input",
-                        "block_id": "skill_group_block",
-                        "label": {
-                            "type": "plain_text",
-                            "text": "Skill Group"
-                        },
-                        "element": {
-                            "type": "static_select",
-                            "action_id": "skill_group_select",
-                            "options": [
-                                {"text": {"type": "plain_text", "text": "Data"}, "value": "data"},
-                                {"text": {"type": "plain_text", "text": "Runtime"}, "value": "runtime"},
-                                {"text": {"type": "plain_text", "text": "Platform/Web Services"}, "value": "platform"},
-                                {"text": {"type": "plain_text", "text": "Account Management"}, "value": "account_management"},
-                                {"text": {"type": "plain_text", "text": "Other"}, "value": "other"}
-                            ]
-                        },
-                        "optional": False
-                    },
-                    {
-                        "type": "input",
-                        "block_id": "support_tier_block",
-                        "label": {
-                            "type": "plain_text",
-                            "text": "Support Tier"
-                        },
-                        "element": {
-                            "type": "static_select",
-                            "action_id": "support_tier_select",
-                            "options": [
-                                {"text": {"type": "plain_text", "text": "High Complexity"}, "value": "high_complexity"},
-                                {"text": {"type": "plain_text", "text": "General Usage"}, "value": "general_usage"}
-                            ]
-                        },
-                        "optional": False
-                    },
-                    {
-                        "type": "input",
-                        "block_id": "priority_block",
-                        "label": {
-                            "type": "plain_text",
-                            "text": "Priority"
-                        },
-                        "element": {
-                            "type": "static_select",
-                            "action_id": "priority_select",
-                            "options": [
-                                {"text": {"type": "plain_text", "text": "Critical"}, "value": "critical"},
-                                {"text": {"type": "plain_text", "text": "Urgent"}, "value": "urgent"},
-                                {"text": {"type": "plain_text", "text": "High"}, "value": "high"},
-                                {"text": {"type": "plain_text", "text": "Normal"}, "value": "normal"},
-                                {"text": {"type": "plain_text", "text": "Low"}, "value": "low"}
-                            ]
-                        },
-                        "optional": False
-                    },
-                    {
-                        "type": "input",
-                        "block_id": "issue_description_block",
-                        "label": {
-                            "type": "plain_text",
-                            "text": "Issue Description"
-                        },
-                        "element": {
-                            "type": "plain_text_input",
-                            "multiline": True,
-                            "action_id": "issue_description_input"
-                        },
-                        "optional": False
-                    },
-                    {
-                        "type": "input",
-                        "block_id": "help_required_block",
-                        "label": {
-                            "type": "plain_text",
-                            "text": "Help Required"
-                        },
-                        "element": {
-                            "type": "plain_text_input",
-                            "multiline": True,
-                            "action_id": "help_required_input"
-                        },
-                        "optional": False
-                    },
-                    {
-                        "type": "actions",
-                        "block_id": "submit_block",
-                        "elements": [
-                            {
-                                "type": "button",
-                                "text": {
-                                    "type": "plain_text",
-                                    "text": "Submit"
-                                },
-                                "action_id": "submit_button"
-                            }
+                {
+                    "type": "input",
+                    "block_id": "entitlement",
+                    "element": {
+                        "type": "static_select",
+                        "action_id": "entitlement_select",
+                        "placeholder": {"type": "plain_text", "text": "Select Entitlement"},
+                        "options": [
+                            {"text": {"type": "plain_text", "text": "Enterprise Signature"}, "value": "enterprise_signature"},
+                            {"text": {"type": "plain_text", "text": "Enterprise Premier"}, "value": "enterprise_premier"},
+                            {"text": {"type": "plain_text", "text": "Enterprise Standard"}, "value": "enterprise_standard"},
+                            {"text": {"type": "plain_text", "text": "Online Customer"}, "value": "online_customer"}
                         ]
-                    }
-                ]
-            }
-        )
-    except SlackApiError as e:
-        print(f"Error opening modal: {e.response['error']}")
-
+                    },
+                    "label": {"type": "plain_text", "text": "Entitlement"}
+                },
+                {
+                    "type": "input",
+                    "block_id": "skill_group",
+                    "element": {
+                        "type": "static_select",
+                        "action_id": "skill_group_select",
+                        "placeholder": {"type": "plain_text", "text": "Select Skill Group"},
+                        "options": [
+                            {"text": {"type": "plain_text", "text": "Data"}, "value": "data"},
+                            {"text": {"type": "plain_text", "text": "Runtime"}, "value": "runtime"},
+                            {"text": {"type": "plain_text", "text": "Platform/Web Services"}, "value": "platform_web_services"},
+                            {"text": {"type": "plain_text", "text": "Account Management"}, "value": "account_management"},
+                            {"text": {"type": "plain_text", "text": "Other"}, "value": "other"}
+                        ]
+                    },
+                    "label": {"type": "plain_text", "text": "Skill Group"}
+                },
+                {
+                    "type": "input",
+                    "block_id": "support_tier",
+                    "element": {
+                        "type": "static_select",
+                        "action_id": "support_tier_select",
+                        "placeholder": {"type": "plain_text", "text": "Select Support Tier"},
+                        "options": [
+                            {"text": {"type": "plain_text", "text": "High Complexity"}, "value": "high_complexity"},
+                            {"text": {"type": "plain_text", "text": "General Usage"}, "value": "general_usage"}
+                        ]
+                    },
+                    "label": {"type": "plain_text", "text": "Support Tier"}
+                },
+                {
+                    "type": "input",
+                    "block_id": "priority",
+                    "element": {
+                        "type": "static_select",
+                        "action_id": "priority_select",
+                        "placeholder": {"type": "plain_text", "text": "Select Priority"},
+                        "options": [
+                            {"text": {"type": "plain_text", "text": "Critical"}, "value": "critical"},
+                            {"text": {"type": "plain_text", "text": "Urgent"}, "value": "urgent"},
+                            {"text": {"type": "plain_text", "text": "High"}, "value": "high"},
+                            {"text": {"type": "plain_text", "text": "Normal"}, "value": "normal"},
+                            {"text": {"type": "plain_text", "text": "Low"}, "value": "low"}
+                        ]
+                    },
+                    "label": {"type": "plain_text", "text": "Priority"}
+                },
+                {
+                    "type": "input",
+                    "block_id": "issue_description",
+                    "element": {"type": "plain_text_input", "multiline": True, "action_id": "issue_description_input"},
+                    "label": {"type": "plain_text", "text": "Issue Description"}
+                },
+                {
+                    "type": "input",
+                    "block_id": "help_required",
+                    "element": {"type": "plain_text_input", "multiline": True, "action_id": "help_required_input"},
+                    "label": {"type": "plain_text", "text": "Help Required"}
+                }
+            ]
+        }
+    )
 
 # Handle modal submissions
 @app.view("swarm_request_form")
