@@ -173,6 +173,7 @@ def handle_swarm_request(ack, body):
     except SlackApiError as e:
         print(f"Error opening modal: {e.response['error']}")
 
+
 # Handle modal submissions
 @app.view("swarm_request_form")
 def handle_modal_submission(ack, body):
