@@ -1,13 +1,8 @@
 import os
 import logging
 import psycopg2
-import slack_sdk
+from slack_sdk import *
 from slack_bolt import App
-from slack_sdk import WebClient
-from slack_sdk.errors import SlackApiError
-from slack_sdk.models.blocks import SectionBlock, ActionsBlock, DividerBlock
-from slack_sdk.models import MarkdownTextObject, PlainTextObject
-
 
 
 # Initialize the Slack app
