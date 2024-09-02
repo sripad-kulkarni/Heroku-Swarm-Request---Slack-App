@@ -119,7 +119,6 @@ def handle_swarm_request(ack, body, client):
                     "label": {"type": "plain_text", "text": "Help Required"}
                 }
             ],
-            # Add a hidden input field to store the original channel ID
             "private_metadata": body["channel_id"]
         }
     )
@@ -213,48 +212,57 @@ def handle_resolve_button(ack, body, client):
     ack()
     user_id = body["user"]["id"]
     channel_id = body["channel"]["id"]
-    message_ts = body["message"]["ts"]  # Use message_ts as ID
+    message_ts = body["message"]["ts"]
 
     try:
         # Remove the pin from the message
         client.pins_remove(channel=channel_id, timestamp=message_ts)
         
-        # Update the message to reflect it as resolved
+        # Update the original message to reflect the resolved status
+        updated_blocks = [
+            block for block in body["message"]["blocks"] if block["type"] != "actions"
+        ] + [
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": f"Swarm request resolved by <@{user_id}>."}
+            },
+            {
+                "type": "actions",
+                "elements": [
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "Re-Open Swarm"},
+                        "style": "primary",
+                        "value": "reopen",
+                        "action_id": "reopen_button"
+                    }
+                ]
+            }
+        ]
         client.chat_update(
             channel=channel_id,
             ts=message_ts,
-            text="This swarm request has been resolved.",
-            blocks=[
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": "This swarm request has been resolved."
-                    }
-                }
-            ]
+            blocks=updated_blocks
         )
-        
-        # Update the database
+
+        # Update or insert the row in the database
         conn = get_db_connection()
         cur = conn.cursor()
-        try:
-            cur.execute(
-                """
-                UPDATE swarm_requests
-                SET status = 'resolved'
-                WHERE ticket = %s
-                """,
-                (body["message"]["text"],)  # Adjust the query based on your schema
-            )
-            conn.commit()
-        except Exception as e:
-            logging.error(f"Error updating database: {e}")
-        finally:
-            cur.close()
-            conn.close()
+        cur.execute(
+            """
+            INSERT INTO swarm_requests (id, status)
+            VALUES (%s, 'resolved')
+            ON CONFLICT (id) DO UPDATE
+            SET status = 'resolved', updated_at = CURRENT_TIMESTAMP
+            """,
+            (message_ts,)
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        
     except SlackApiError as e:
-        logging.error(f"Error handling resolve button: {e.response['error']}")
+        logging.error(f"Error resolving swarm request: {e.response['error']}")
 
 # Handle the "Discard Swarm" button click
 @app.action("discard_button")
@@ -262,194 +270,198 @@ def handle_discard_button(ack, body, client):
     ack()
     user_id = body["user"]["id"]
     channel_id = body["channel"]["id"]
-    message_ts = body["message"]["ts"]  # Use message_ts as ID
+    message_ts = body["message"]["ts"]
 
     try:
         # Remove the pin from the message
         client.pins_remove(channel=channel_id, timestamp=message_ts)
         
-        # Update the message to reflect it as discarded
+        # Update the original message to reflect the discarded status
+        updated_blocks = [
+            block for block in body["message"]["blocks"] if block["type"] != "actions"
+        ] + [
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": f"Swarm request discarded by <@{user_id}>."}
+            },
+            {
+                "type": "actions",
+                "elements": [
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "Re-Open Swarm"},
+                        "style": "primary",
+                        "value": "reopen",
+                        "action_id": "reopen_button"
+                    }
+                ]
+            }
+        ]
         client.chat_update(
             channel=channel_id,
             ts=message_ts,
-            text="This swarm request has been discarded.",
-            blocks=[
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": "This swarm request has been discarded."
-                    }
-                }
-            ]
+            blocks=updated_blocks
         )
-        
-        # Update the database
+
+        # Update or insert the row in the database
         conn = get_db_connection()
         cur = conn.cursor()
-        try:
-            cur.execute(
-                """
-                UPDATE swarm_requests
-                SET status = 'discarded'
-                WHERE ticket = %s
-                """,
-                (body["message"]["text"],)  # Adjust the query based on your schema
-            )
-            conn.commit()
-        except Exception as e:
-            logging.error(f"Error updating database: {e}")
-        finally:
-            cur.close()
-            conn.close()
+        cur.execute(
+            """
+            INSERT INTO swarm_requests (id, status)
+            VALUES (%s, 'discarded')
+            ON CONFLICT (id) DO UPDATE
+            SET status = 'discarded', updated_at = CURRENT_TIMESTAMP
+            """,
+            (message_ts,)
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        
     except SlackApiError as e:
-        logging.error(f"Error handling discard button: {e.response['error']}")
+        logging.error(f"Error discarding swarm request: {e.response['error']}")
 
 # Handle the "Re-Open Swarm" button click
 @app.action("reopen_button")
-def handle_reopen_button(ack, body, client):
+def handle_reopen_swarm(ack, body, client):
     ack()
     user_id = body["user"]["id"]
     channel_id = body["channel"]["id"]
-    message_ts = body["message"]["ts"]  # Use message_ts as ID
+    message_ts = body["message"]["ts"]
 
     try:
-        # Update the message to reflect it as reopened
+        # Post a new message in the thread indicating the swarm request has been reopened
+        client.chat_postMessage(
+            channel=channel_id,
+            thread_ts=message_ts,
+            text="The swarm request has been reopened and needs attention."
+        )
+
+        # Update the original message to show the previous two buttons
+        updated_blocks = [
+            block for block in body["message"]["blocks"]
+            if not (
+                (block.get("type") == "section" and
+                 "Swarm request resolved by" in block.get("text", {}).get("text", "")) or
+                (block.get("type") == "actions" and
+                 any(button.get("text", {}).get("text", "") == "Re-Open Swarm" for button in block.get("elements", [])))
+            )
+        ]
+        
+        updated_blocks.append(
+            {
+                "type": "actions",
+                "elements": [
+                    {"type": "button", "text": {"type": "plain_text", "text": "Resolve Swarm"}, "style": "primary", "action_id": "resolve_button"},
+                    {"type": "button", "text": {"type": "plain_text", "text": "Discard Swarm"}, "style": "danger", "action_id": "discard_button"}
+                ]
+            }
+        )
+
         client.chat_update(
             channel=channel_id,
             ts=message_ts,
-            text="This swarm request has been reopened.",
-            blocks=[
+            blocks=updated_blocks
+        )
+
+        client.pins_add(channel=channel_id, timestamp=message_ts)
+
+
+        # Update or insert the row in the database
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO swarm_requests (id, status)
+            VALUES (%s, 'reopened')
+            ON CONFLICT (id) DO UPDATE
+            SET status = 'reopened', updated_at = CURRENT_TIMESTAMP
+            """,
+            (message_ts,)
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+
+    except SlackApiError as e:
+        logging.error(f"Error reopening swarm request: {e.response['error']}")
+
+
+@app.event("app_home_opened")
+def update_home_tab(client, event):
+    try:
+        # Get statistics for App Home
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute("SELECT COUNT(*) FROM swarm_requests")
+            total_requests = cur.fetchone()[0]
+
+            cur.execute("SELECT COUNT(*) FROM swarm_requests WHERE status = 'resolved'")
+            total_resolved = cur.fetchone()[0]
+
+            cur.execute("SELECT COUNT(*) FROM swarm_requests WHERE status = 'discarded'")
+            total_discarded = cur.fetchone()[0]
+
+            cur.execute("SELECT COUNT(*) FROM swarm_requests WHERE status = 'open'")
+            total_open = cur.fetchone()[0]
+
+            # Fetch user statistics
+            cur.execute("""
+                SELECT user_id, COUNT(*) AS requests_created
+                FROM swarm_requests
+                GROUP BY user_id
+            """)
+            user_stats = cur.fetchall()
+
+            user_stats_blocks = []
+            for user_id, requests_created in user_stats:
+                # Replace user_id with display name if needed
+                display_name = user_id  # Adjust if you have a way to fetch display names
+                user_stats_blocks.append(
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": f"*{display_name}:*\nCreated {requests_created} requests"
+                        }
+                    }
+                )
+
+        except Exception as e:
+            logging.error(f"Error fetching stats from database: {e}")
+            total_requests, total_resolved, total_discarded, total_open = 0, 0, 0
+            user_stats_blocks = []
+
+        finally:
+            cur.close()
+            conn.close()
+
+        # Publish the updated view
+        view = {
+            "type": "home",
+            "blocks": [
                 {
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": "This swarm request has been reopened and needs attention."
+                        "text": f"*Total Swarm Requests:*\n{total_requests}\n"
+                                f"*Total Open Requests:*\n{total_open}\n"
+                                f"*Total Resolved Requests:*\n{total_resolved}\n"
+                                f"*Total Discarded Requests:*\n{total_discarded}\n"
                     }
                 },
-                {
-                    "type": "actions",
-                    "elements": [
-                        {
-                            "type": "button",
-                            "text": {"type": "plain_text", "text": "Resolve Swarm"},
-                            "style": "primary",
-                            "value": "resolve",
-                            "action_id": "resolve_button"
-                        },
-                        {
-                            "type": "button",
-                            "text": {"type": "plain_text", "text": "Discard Swarm"},
-                            "style": "danger",
-                            "value": "discard",
-                            "action_id": "discard_button"
-                        }
-                    ]
-                }
+                *user_stats_blocks  # Add user statistics blocks
             ]
-        )
-        
-        # Add a pin to the message
-        client.pins_add(channel=channel_id, timestamp=message_ts)
-        
-        # Update the database
-        conn = get_db_connection()
-        cur = conn.cursor()
-        try:
-            cur.execute(
-                """
-                UPDATE swarm_requests
-                SET status = 'open'
-                WHERE ticket = %s
-                """,
-                (body["message"]["text"],)  # Adjust the query based on your schema
-            )
-            conn.commit()
-        except Exception as e:
-            logging.error(f"Error updating database: {e}")
-        finally:
-            cur.close()
-            conn.close()
-    except SlackApiError as e:
-        logging.error(f"Error handling reopen button: {e.response['error']}")
+        }
 
-# Update App Home tab
-@app.event("app_home_opened")
-def update_home_tab(client, event):
-    try:
-        view = get_home_tab_view()
         client.views_publish(
             user_id=event["user"],
             view=view
         )
     except SlackApiError as e:
         logging.error(f"Error publishing home tab view: {e.response['error']}")
-
-def get_home_tab_view():
-    conn = get_db_connection()
-    cur = conn.cursor()
-    try:
-        # Fetch total statistics
-        cur.execute("SELECT COUNT(*) FROM swarm_requests")
-        total_requests = cur.fetchone()[0]
-
-        cur.execute("SELECT COUNT(*) FROM swarm_requests WHERE status = 'resolved'")
-        total_resolved = cur.fetchone()[0]
-
-        cur.execute("SELECT COUNT(*) FROM swarm_requests WHERE status = 'discarded'")
-        total_discarded = cur.fetchone()[0]
-
-        cur.execute("SELECT COUNT(*) FROM swarm_requests WHERE status = 'open'")
-        total_open = cur.fetchone()[0]
-
-        # Fetch user statistics
-        cur.execute("""
-            SELECT user_id, 
-                   COUNT(*) AS requests_created
-            FROM swarm_requests
-            GROUP BY user_id
-        """)
-        user_stats = cur.fetchall()
-
-        user_stats_blocks = []
-        for user_id, requests_created in user_stats:
-            # Replace user_id with display name if needed
-            display_name = user_id  # Adjust if you have a way to fetch display names
-            user_stats_blocks.append(
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": f"*{display_name}:*\nCreated {requests_created} requests, Posted X comments"
-                    }
-                }
-            )
-        
-    except Exception as e:
-        logging.error(f"Error fetching stats from database: {e}")
-        total_requests, total_resolved, total_discarded, total_open = 0, 0, 0, 0
-        user_stats_blocks = []
-
-    finally:
-        cur.close()
-        conn.close()
-
-    return {
-        "type": "home",
-        "blocks": [
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": f"*Total Swarm Requests:*\n{total_requests}\n"
-                            f"*Total Open Requests:*\n{total_open}\n"
-                            f"*Total Resolved Requests:*\n{total_resolved}\n"
-                            f"*Total Discarded Requests:*\n{total_discarded}\n"
-                }
-            },
-            *user_stats_blocks  # Add user statistics blocks
-        ]
-    }
 
 # Start the app
 if __name__ == "__main__":
