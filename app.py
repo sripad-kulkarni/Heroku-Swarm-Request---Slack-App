@@ -412,21 +412,26 @@ def app_home_opened(client, event):
         # Query the database to get statistics
         conn = get_db_connection()
         cur = conn.cursor()
+
+        # Get total counts
         cur.execute("""
             SELECT
+                COUNT(*) AS total_requests,
                 COUNT(*) FILTER (WHERE status = 'open') AS total_open,
                 COUNT(*) FILTER (WHERE status = 'resolved') AS total_resolved,
-                COUNT(*) FILTER (WHERE status = 'discarded') AS total_discarded,
-                COUNT(*) AS total_requests
+                COUNT(*) FILTER (WHERE status = 'discarded') AS total_discarded
             FROM swarm_requests
         """)
         stats = cur.fetchone()
+
+        if stats:
+            total_requests, total_open, total_resolved, total_discarded = stats
+        else:
+            total_requests = total_open = total_resolved = total_discarded = 0
+        
         conn.close()
 
         # Prepare statistics for display
-        total_requests, total_open, total_resolved, total_discarded = stats
-
-        # Build the statistics blocks as dictionaries
         blocks = [
             {
                 "type": "section",
@@ -503,7 +508,6 @@ def app_home_opened(client, event):
 
     except SlackApiError as e:
         logging.error(f"Error opening app home: {e.response['error']}")
-
 
 # Start the app
 if __name__ == "__main__":
