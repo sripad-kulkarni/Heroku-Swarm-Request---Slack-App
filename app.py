@@ -286,8 +286,8 @@ def handle_discard_button(ack, body, client):
         logging.error(f"Error discarding swarm request: {e.response['error']}")
 
 
-
-@app.action("reopen_swarm")
+# Handle the "Re-Open Swarm" button click
+@app.action("reopen_button")
 def handle_reopen_swarm(ack, body, client):
     ack()
     # Get message details
@@ -305,18 +305,18 @@ def handle_reopen_swarm(ack, body, client):
     client.chat_update(
         channel=channel_id,
         ts=ts,
-        text=f"{body['message']['text']}\n\n*Status: Reopened - Needs Attention*",
         blocks=[
             {"type": "section", "text": {"type": "mrkdwn", "text": f"{body['message']['text']}\n\n*Status: Reopened - Needs Attention*"}},
             {
                 "type": "actions",
                 "elements": [
-                    {"type": "button", "text": {"type": "plain_text", "text": "Resolve Swarm"}, "style": "primary", "action_id": "resolve_swarm"},
-                    {"type": "button", "text": {"type": "plain_text", "text": "Discard Swarm"}, "style": "danger", "action_id": "discard_swarm"}
+                    {"type": "button", "text": {"type": "plain_text", "text": "Resolve Swarm"}, "style": "primary", "action_id": "resolve_button"},
+                    {"type": "button", "text": {"type": "plain_text", "text": "Discard Swarm"}, "style": "danger", "action_id": "discard_button"}
                 ]
             }
         ]
     )
+
 
 # Function to remind user after 24 hours
 def remind_user_after_24_hours(client, channel_id, user_id, message_ts):
