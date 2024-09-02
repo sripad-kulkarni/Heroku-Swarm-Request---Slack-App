@@ -1,11 +1,13 @@
 import os
 import logging
 import psycopg2
+import slack_sdk
 from slack_bolt import App
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 from slack_sdk.models.blocks import SectionBlock, ActionsBlock, DividerBlock
 from slack_sdk.models import MarkdownTextObject, PlainTextObject
+
 
 
 # Initialize the Slack app
@@ -479,7 +481,7 @@ def app_home_opened(client, event):
 
     except SlackApiError as e:
         logging.error(f"Error opening app home: {e.response['error']}")
-        
+
 
 # Start the app
 if __name__ == "__main__":
