@@ -36,7 +36,70 @@ def handle_swarm_request(ack, body, client):
             "submit": {"type": "plain_text", "text": "Submit"},
             "close": {"type": "plain_text", "text": "Cancel"},
             "blocks": [
-                # Modal blocks here...
+                {
+                    "type": "input",
+                    "block_id": "ticket",
+                    "label": {"type": "plain_text", "text": "Ticket"},
+                    "element": {
+                        "type": "plain_text_input",
+                        "action_id": "ticket"
+                    }
+                },
+                {
+                    "type": "input",
+                    "block_id": "entitlement",
+                    "label": {"type": "plain_text", "text": "Entitlement"},
+                    "element": {
+                        "type": "plain_text_input",
+                        "action_id": "entitlement"
+                    }
+                },
+                {
+                    "type": "input",
+                    "block_id": "skill_group",
+                    "label": {"type": "plain_text", "text": "Skill Group"},
+                    "element": {
+                        "type": "plain_text_input",
+                        "action_id": "skill_group"
+                    }
+                },
+                {
+                    "type": "input",
+                    "block_id": "support_tier",
+                    "label": {"type": "plain_text", "text": "Support Tier"},
+                    "element": {
+                        "type": "plain_text_input",
+                        "action_id": "support_tier"
+                    }
+                },
+                {
+                    "type": "input",
+                    "block_id": "priority",
+                    "label": {"type": "plain_text", "text": "Priority"},
+                    "element": {
+                        "type": "plain_text_input",
+                        "action_id": "priority"
+                    }
+                },
+                {
+                    "type": "input",
+                    "block_id": "issue_description",
+                    "label": {"type": "plain_text", "text": "Issue Description"},
+                    "element": {
+                        "type": "plain_text_input",
+                        "multiline": True,
+                        "action_id": "issue_description"
+                    }
+                },
+                {
+                    "type": "input",
+                    "block_id": "help_required",
+                    "label": {"type": "plain_text", "text": "Help Required"},
+                    "element": {
+                        "type": "plain_text_input",
+                        "action_id": "help_required"
+                    }
+                }
             ],
             # Add a hidden input field to store the original channel ID
             "private_metadata": body["channel_id"]
@@ -48,8 +111,14 @@ def handle_modal_submission(ack, body, view, client):
     ack()
 
     # Extract values from the modal submission
-    # Extract values from the modal submission...
-    
+    ticket = view["state"]["values"]["ticket"]["ticket"]["value"]
+    entitlement = view["state"]["values"]["entitlement"]["entitlement"]["value"]
+    skill_group = view["state"]["values"]["skill_group"]["skill_group"]["value"]
+    support_tier = view["state"]["values"]["support_tier"]["support_tier"]["value"]
+    priority = view["state"]["values"]["priority"]["priority"]["value"]
+    issue_description = view["state"]["values"]["issue_description"]["issue_description"]["value"]
+    help_required = view["state"]["values"]["help_required"]["help_required"]["value"]
+
     # Get the channel ID from the context
     channel_id = body["view"]["private_metadata"]
     user_id = body["user"]["id"]
@@ -59,7 +128,39 @@ def handle_modal_submission(ack, body, view, client):
         result = client.chat_postMessage(
             channel=channel_id,
             blocks=[
-                # Message blocks here...
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"New Swarm Request:\n*Ticket:* {ticket}\n*Entitlement:* {entitlement}\n*Skill Group:* {skill_group}\n*Support Tier:* {support_tier}\n*Priority:* {priority}\n*Issue Description:* {issue_description}\n*Help Required:* {help_required}"
+                    }
+                },
+                {
+                    "type": "actions",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "text": {"type": "plain_text", "text": "Resolve Swarm"},
+                            "style": "primary",
+                            "value": "resolve",
+                            "action_id": "resolve_button"
+                        },
+                        {
+                            "type": "button",
+                            "text": {"type": "plain_text", "text": "Discard Swarm"},
+                            "style": "danger",
+                            "value": "discard",
+                            "action_id": "discard_button"
+                        },
+                        {
+                            "type": "button",
+                            "text": {"type": "plain_text", "text": "Re-Open Swarm"},
+                            "style": "primary",
+                            "value": "reopen",
+                            "action_id": "reopen_button"
+                        }
+                    ]
+                }
             ],
             text="New Swarm Request",
             user=user_id,
@@ -76,10 +177,10 @@ def handle_modal_submission(ack, body, view, client):
     try:
         cur.execute(
             """
-            INSERT INTO swarm_requests (ticket, entitlement, skill_group, support_tier, priority, issue_description, help_required, user_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO swarm_requests (ticket, entitlement, skill_group, support_tier, priority, issue_description, help_required, user_id, message_ts)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
-            (ticket, entitlement, skill_group, support_tier, priority, issue_description, help_required, user_id)
+            (ticket, entitlement, skill_group, support_tier, priority, issue_description, help_required, user_id, result["ts"])
         )
         conn.commit()
     except Exception as e:
@@ -94,7 +195,7 @@ def handle_resolve_button(ack, body, client):
     ack()
     user_id = body["user"]["id"]
     channel_id = body["channel"]["id"]
-    message_ts = body["message"]["ts"]  # Use message timestamp as ID
+    message_ts = body["message"]["ts"]
 
     try:
         # Remove the pin from the message
@@ -132,9 +233,9 @@ def handle_resolve_button(ack, body, client):
         cur = conn.cursor()
         cur.execute(
             """
-            INSERT INTO swarm_requests (id, status)
+            INSERT INTO swarm_requests (message_ts, status)
             VALUES (%s, 'resolved')
-            ON CONFLICT (id) DO UPDATE
+            ON CONFLICT (message_ts) DO UPDATE
             SET status = 'resolved', updated_at = CURRENT_TIMESTAMP
             """,
             (message_ts,)
@@ -151,7 +252,7 @@ def handle_discard_button(ack, body, client):
     ack()
     user_id = body["user"]["id"]
     channel_id = body["channel"]["id"]
-    message_ts = body["message"]["ts"]  # Use message timestamp as ID
+    message_ts = body["message"]["ts"]
 
     try:
         # Remove the pin from the message
@@ -167,13 +268,66 @@ def handle_discard_button(ack, body, client):
             },
             {
                 "type": "actions",
+                "elements": []
+            }
+        ]
+        client.chat_update(
+            channel=channel_id,
+            ts=message_ts,
+            blocks=updated_blocks
+        )
+
+        # Update or insert the row in the database
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO swarm_requests (message_ts, status)
+            VALUES (%s, 'discarded')
+            ON CONFLICT (message_ts) DO UPDATE
+            SET status = 'discarded', updated_at = CURRENT_TIMESTAMP
+            """,
+            (message_ts,)
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+    except SlackApiError as e:
+        logging.error(f"Error discarding swarm request: {e.response['error']}")
+
+@app.action("reopen_button")
+def handle_reopen_button(ack, body, client):
+    ack()
+    user_id = body["user"]["id"]
+    channel_id = body["channel"]["id"]
+    message_ts = body["message"]["ts"]
+
+    try:
+        # Update the original message to reflect the reopened status
+        updated_blocks = [
+            block for block in body["message"]["blocks"] if block["type"] != "actions"
+        ] + [
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": f"Swarm request reopened by <@{user_id}>. Needs attention."}
+            },
+            {
+                "type": "actions",
                 "elements": [
                     {
                         "type": "button",
-                        "text": {"type": "plain_text", "text": "Re-Open Swarm"},
+                        "text": {"type": "plain_text", "text": "Resolve Swarm"},
                         "style": "primary",
-                        "value": "reopen",
-                        "action_id": "reopen_button"
+                        "value": "resolve",
+                        "action_id": "resolve_button"
+                    },
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "Discard Swarm"},
+                        "style": "danger",
+                        "value": "discard",
+                        "action_id": "discard_button"
                     }
                 ]
             }
@@ -189,70 +343,9 @@ def handle_discard_button(ack, body, client):
         cur = conn.cursor()
         cur.execute(
             """
-            INSERT INTO swarm_requests (id, status)
-            VALUES (%s, 'discarded')
-            ON CONFLICT (id) DO UPDATE
-            SET status = 'discarded', updated_at = CURRENT_TIMESTAMP
-            """,
-            (message_ts,)
-        )
-        conn.commit()
-        cur.close()
-        conn.close()
-        
-    except SlackApiError as e:
-        logging.error(f"Error discarding swarm request: {e.response['error']}")
-
-@app.action("reopen_button")
-def handle_reopen_swarm(ack, body, client):
-    ack()
-    user_id = body["user"]["id"]
-    channel_id = body["channel"]["id"]
-    message_ts = body["message"]["ts"]  # Use message timestamp as ID
-
-    try:
-        # Post a new message in the thread indicating the swarm request has been reopened
-        client.chat_postMessage(
-            channel=channel_id,
-            thread_ts=message_ts,
-            text="The swarm request has been reopened and needs attention."
-        )
-
-        # Update the original message to show the previous two buttons
-        updated_blocks = [
-            block for block in body["message"]["blocks"]
-            if not (
-                (block.get("type") == "section" and
-                 "Swarm request resolved by" in block.get("text", {}).get("text", "")) or
-                (block.get("type") == "actions" and
-                 any(button.get("text", {}).get("text", "") == "Re-Open Swarm" for button in block.get("elements", [])))
-            )
-        ]
-        
-        updated_blocks.append(
-            {
-                "type": "actions",
-                "elements": [
-                    {"type": "button", "text": {"type": "plain_text", "text": "Resolve Swarm"}, "style": "primary", "action_id": "resolve_button"},
-                    {"type": "button", "text": {"type": "plain_text", "text": "Discard Swarm"}, "style": "danger", "action_id": "discard_button"}
-                ]
-            }
-        )
-
-        client.chat_update(
-            channel=channel_id,
-            ts=message_ts,
-            blocks=updated_blocks
-        )
-
-        # Update or insert the row in the database
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(
-            """
-            INSERT INTO swarm_requests (id, status)
+            INSERT INTO swarm_requests (message_ts, status)
             VALUES (%s, 'reopened')
-            ON CONFLICT (id) DO UPDATE
+            ON CONFLICT (message_ts) DO UPDATE
             SET status = 'reopened', updated_at = CURRENT_TIMESTAMP
             """,
             (message_ts,)
