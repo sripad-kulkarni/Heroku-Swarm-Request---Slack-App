@@ -207,6 +207,7 @@ def handle_modal_submission(ack, body, view, client):
         cur.close()
         conn.close()
 
+# Handle the "Resolve Swarm" button click
 @app.action("resolve_button")
 def handle_resolve_button(ack, body, client):
     ack()
@@ -214,7 +215,22 @@ def handle_resolve_button(ack, body, client):
     channel_id = body["channel"]["id"]
     message_ts = body["message"]["ts"]
 
-    # Unpin the message and update it with a resolved note, removing the buttons
+    # Update the status in the database
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "UPDATE swarm_requests SET status = %s WHERE channel_id = %s AND message_ts = %s",
+            ('resolved', channel_id, message_ts)
+        )
+        conn.commit()
+    except Exception as e:
+        logging.error(f"Error updating status in database: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+    # Unpin the message and update it with a resolved note
     try:
         client.pins_remove(channel=channel_id, timestamp=message_ts)
         updated_blocks = [
@@ -242,21 +258,11 @@ def handle_resolve_button(ack, body, client):
             ts=message_ts,
             blocks=updated_blocks
         )
-        
-        # Update the status to 'closed' in the database
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("""
-            UPDATE swarm_requests
-            SET status = 'closed'
-            WHERE message_ts = %s
-        """, (message_ts,))
-        conn.commit()
-        cur.close()
-        conn.close()
     except SlackApiError as e:
         logging.error(f"Error resolving swarm request: {e.response['error']}")
 
+
+# Handle the "Discard Swarm" button click
 @app.action("discard_button")
 def handle_discard_button(ack, body, client):
     ack()
@@ -264,7 +270,22 @@ def handle_discard_button(ack, body, client):
     channel_id = body["channel"]["id"]
     message_ts = body["message"]["ts"]
 
-    # Unpin the message and update it with a discarded note, removing the buttons
+    # Update the status in the database
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "UPDATE swarm_requests SET status = %s WHERE channel_id = %s AND message_ts = %s",
+            ('discarded', channel_id, message_ts)
+        )
+        conn.commit()
+    except Exception as e:
+        logging.error(f"Error updating status in database: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+    # Unpin the message and update it with a discarded note
     try:
         client.pins_remove(channel=channel_id, timestamp=message_ts)
         updated_blocks = [
@@ -292,20 +313,9 @@ def handle_discard_button(ack, body, client):
             ts=message_ts,
             blocks=updated_blocks
         )
-        
-        # Update the status to 'closed' in the database
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("""
-            UPDATE swarm_requests
-            SET status = 'closed'
-            WHERE message_ts = %s
-        """, (message_ts,))
-        conn.commit()
-        cur.close()
-        conn.close()
     except SlackApiError as e:
         logging.error(f"Error discarding swarm request: {e.response['error']}")
+
 
 
 @app.action("reopen_button")
@@ -434,71 +444,82 @@ def fetch_statistics():
     }
 
 
-@app.event("app_home_opened")
-def update_home_tab(client, event):
-    user_id = event["user"]
+def get_home_tab_view():
     conn = get_db_connection()
     cur = conn.cursor()
-    
-    # Query to get statistics
-    cur.execute("""
-        SELECT COUNT(*) FROM swarm_requests
-    """)
-    total_requests = cur.fetchone()[0]
-
-    cur.execute("""
-        SELECT COUNT(*) FROM swarm_requests WHERE status = 'open'
-    """)
-    total_open_requests = cur.fetchone()[0]
-
-    cur.execute("""
-        SELECT COUNT(*) FROM swarm_requests WHERE status = 'closed'
-    """)
-    total_closed_requests = cur.fetchone()[0]
-
-    cur.execute("""
-        SELECT user_id, COUNT(*) FROM swarm_requests
-        GROUP BY user_id
-    """)
-    user_stats = cur.fetchall()
-    
-    # Format user statistics
-    user_stats_text = ""
-    for user in user_stats:
-        user_profile = client.users_info(user=user[0])
-        user_name = user_profile["user"]["real_name"]
-        user_stats_text += f"@{user_name}: Created {user[1]} requests\n"
-
-    # Construct home tab view
     try:
-        client.views_publish(
-            user_id=user_id,
-            view={
-                "type": "home",
-                "blocks": [
-                    {
-                        "type": "section",
-                        "block_id": "stats_section",
-                        "text": {
-                            "type": "mrkdwn",
-                            "text": (
-                                f"*Swarm Request Statistics:*\n"
-                                f"Total Swarm Requests: {total_requests}\n"
-                                f"Total Open Requests: {total_open_requests}\n"
-                                f"Total Closed Requests: {total_closed_requests}\n\n"
-                                f"*User Statistics:*\n"
-                                f"{user_stats_text}"
-                            )
-                        }
+        # Fetch total statistics
+        cur.execute("SELECT COUNT(*) FROM swarm_requests")
+        total_requests = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(*) FROM swarm_requests WHERE status = 'resolved'")
+        total_resolved = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(*) FROM swarm_requests WHERE status = 'discarded'")
+        total_discarded = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(*) FROM swarm_requests WHERE status = 'open'")
+        total_open = cur.fetchone()[0]
+
+        # Fetch user statistics
+        cur.execute("""
+            SELECT user_id, 
+                   COUNT(*) AS requests_created
+            FROM swarm_requests
+            GROUP BY user_id
+        """)
+        user_stats = cur.fetchall()
+
+        user_stats_blocks = []
+        for user_id, requests_created in user_stats:
+            # Replace user_id with display name if needed
+            display_name = user_id  # Adjust if you have a way to fetch display names
+            user_stats_blocks.append(
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"*{display_name}:*\nCreated {requests_created} requests, Posted X comments"
                     }
-                ]
-            }
-        )
-    except SlackApiError as e:
-        logging.error(f"Error updating home tab: {e.response['error']}")
+                }
+            )
+        
+    except Exception as e:
+        logging.error(f"Error fetching stats from database: {e}")
+        total_requests, total_resolved, total_discarded, total_open = 0, 0, 0, 0
+        user_stats_blocks = []
+
     finally:
         cur.close()
         conn.close()
+
+    return {
+        "type": "home",
+        "blocks": [
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*Total Swarm Requests:*\n{total_requests}\n"
+                            f"*Total Open Requests:*\n{total_open}\n"
+                            f"*Total Resolved Requests:*\n{total_resolved}\n"
+                            f"*Total Discarded Requests:*\n{total_discarded}\n"
+                }
+            },
+            *user_stats_blocks  # Add user statistics blocks
+        ]
+    }
+
+@app.event("app_home_opened")
+def update_home_tab(client, event):
+    try:
+        view = get_home_tab_view()
+        client.views_publish(
+            user_id=event["user"],
+            view=view
+        )
+    except SlackApiError as e:
+        logging.error(f"Error publishing home tab view: {e.response['error']}")
 
 
 # Start the app
