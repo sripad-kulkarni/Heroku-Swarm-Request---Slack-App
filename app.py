@@ -231,8 +231,13 @@ def handle_resolve_swarm(ack, body, client):
         ]
     )
 
-    # Unpin the message
-    client.pins_remove(channel=channel_id, timestamp=ts)
+    # Post a new message in the thread
+    client.chat_postMessage(
+        channel=channel_id,
+        thread_ts=body["message"]["ts"],
+        text="The swarm request has been resolved and needs no further action."
+    )
+
 
 @app.action("discard_swarm")
 def handle_discard_swarm(ack, body, client):
@@ -257,8 +262,13 @@ def handle_discard_swarm(ack, body, client):
         ]
     )
 
-    # Unpin the message
-    client.pins_remove(channel=channel_id, timestamp=ts)
+    # Post a new message in the thread
+    client.chat_postMessage(
+        channel=channel_id,
+        thread_ts=body["message"]["ts"],
+        text="The swarm request has been discarded and needs no further action."
+    )
+
 
 @app.action("reopen_swarm")
 def handle_reopen_swarm(ack, body, client):
