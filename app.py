@@ -463,7 +463,6 @@ def get_user_info(client, user_id):
 
 
 @app.event("app_home_opened")
-@app.event("app_home_opened")
 def app_home_opened(client, event):
     user_id = event["user"]
 
@@ -472,7 +471,7 @@ def app_home_opened(client, event):
         user_info = client.users_info(user=user_id)
         user_name = user_info["user"]["real_name"]
 
-        # Query the database to get statistics
+        # Query the database to get total statistics
         conn = get_db_connection()
         cur = conn.cursor()
 
@@ -492,8 +491,6 @@ def app_home_opened(client, event):
         else:
             total_requests = total_open = total_resolved = total_discarded = 0
         
-        conn.close()
-
         # Prepare statistics for display
         blocks = [
             {
@@ -532,40 +529,46 @@ def app_home_opened(client, event):
         ]
 
         # Query to get the request counts by user
-        conn = get_db_connection()
-        cur = conn.cursor()
         cur.execute("""
-            SELECT user_id, COUNT(*) FROM swarm_requests
+            SELECT 
+                user_id,
+                COUNT(*) AS total_requests,
+                COUNT(*) FILTER (WHERE status = 'open') AS total_open,
+                COUNT(*) FILTER (WHERE status = 'resolved') AS total_resolved,
+                COUNT(*) FILTER (WHERE status = 'discarded') AS total_discarded
+            FROM swarm_requests
             GROUP BY user_id
         """)
         user_requests = cur.fetchall()
         conn.close()
 
-        # Collect user IDs for bulk fetching
-        user_ids = [user_id for user_id, _ in user_requests]
+        # Fetch user information for all users involved
         user_names = {}
-
-        # Fetch user information in bulk
-        for uid in user_ids:
+        for uid, _, _, _, _ in user_requests:
             try:
                 user_info = client.users_info(user=uid)
                 user_names[uid] = user_info["user"]["real_name"]
             except SlackApiError:
                 user_names[uid] = f"<@{uid}>"  # Fallback to mention format
 
-        # Add user request statistics blocks
-        for uid, count in user_requests:
+        # Add user-level statistics blocks
+        for uid, total, open_count, resolved_count, discarded_count in user_requests:
             user_name_display = user_names.get(uid, f"<@{uid}>")
             blocks.append(
                 {
                     "type": "section",
-                    "block_id": f"user_{uid}",
+                    "block_id": f"user_{uid}_stats",
                     "text": {
                         "type": "mrkdwn",
-                        "text": f"{user_name_display}: {count} requests"
+                        "text": f"*{user_name_display}*:\n"
+                                f"- Total Requests: {total}\n"
+                                f"- Open: {open_count}\n"
+                                f"- Resolved: {resolved_count}\n"
+                                f"- Discarded: {discarded_count}"
                     }
                 }
             )
+            blocks.append({"type": "divider"})  # Divider between user stats
 
         # Update the App Home tab
         client.views_publish(
