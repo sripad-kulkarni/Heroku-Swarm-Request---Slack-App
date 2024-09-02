@@ -300,12 +300,15 @@ def handle_reopen_swarm(ack, body, client):
         text="The swarm request has been reopened and needs attention."
     )
 
-    # Update the original message to remove the "resolved" or "discarded" text and show the previous two buttons
+    # Update the original message to remove any previous status updates and buttons
     updated_blocks = [
         block for block in body["message"]["blocks"]
-        if not (block.get("type") == "section" and "Swarm request resolved by" in block.get("text", {}).get("text", ""))
+        if not (
+            block.get("type") == "actions" and
+            any(button.get("text", {}).get("text") == "Re-Open Swarm" for button in block.get("elements", []))
+        )
     ]
-    updated_blocks += [
+    updated_blocks.append(
         {
             "type": "actions",
             "elements": [
@@ -313,7 +316,7 @@ def handle_reopen_swarm(ack, body, client):
                 {"type": "button", "text": {"type": "plain_text", "text": "Discard Swarm"}, "style": "danger", "action_id": "discard_button"}
             ]
         }
-    ]
+    )
 
     try:
         client.chat_update(
@@ -323,6 +326,7 @@ def handle_reopen_swarm(ack, body, client):
         )
     except SlackApiError as e:
         logging.error(f"Error reopening swarm request: {e.response['error']}")
+
 
 
 # Function to remind user after 24 hours
