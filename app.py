@@ -372,6 +372,112 @@ def remind_user_after_24_hours(client, channel_id, user_id, message_ts):
     except SlackApiError as e:
         logging.error(f"Error sending reminder: {e.response['error']}")
 
+
+def fetch_statistics():
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # Example queries to fetch statistics
+    cur.execute("SELECT COUNT(*) FROM swarm_requests")
+    total_swarm_requests = cur.fetchone()[0]
+
+    cur.execute("SELECT COUNT(*) FROM swarm_requests WHERE status = 'resolved'")
+    resolved_requests = cur.fetchone()[0]
+
+    cur.execute("SELECT COUNT(*) FROM swarm_requests WHERE status = 'discarded'")
+    discarded_requests = cur.fetchone()[0]
+
+    cur.execute("SELECT COUNT(*) FROM swarm_requests WHERE status = 'reopened'")
+    reopened_requests = cur.fetchone()[0]
+
+    user_statistics = {}
+    cur.execute("SELECT user_id, COUNT(*) FROM swarm_requests GROUP BY user_id")
+    for user_id, request_count in cur.fetchall():
+        cur.execute("SELECT COUNT(*) FROM comments WHERE user_id = %s", (user_id,))
+        comment_count = cur.fetchone()[0]
+        user_statistics[user_id] = {
+            "requests_created": request_count,
+            "comments_posted": comment_count
+        }
+
+    cur.close()
+    conn.close()
+
+    return {
+        "total_swarm_requests": total_swarm_requests,
+        "resolved_requests": resolved_requests,
+        "discarded_requests": discarded_requests,
+        "reopened_requests": reopened_requests,
+        "user_statistics": user_statistics
+    }
+
+
+@app.event("app_home_opened")
+def update_app_home(event, client):
+    user_id = event["user"]
+
+    # Fetch real statistics from the database
+    stats = fetch_statistics()
+
+    # Create blocks for the App Home
+    blocks = [
+        {
+            "type": "section",
+            "block_id": "total_swarm_requests",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"*Total Swarm Requests:*\n{stats['total_swarm_requests']}"
+            }
+        },
+        {
+            "type": "section",
+            "block_id": "resolved_requests",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"*Resolved Requests:*\n{stats['resolved_requests']}"
+            }
+        },
+        {
+            "type": "section",
+            "block_id": "discarded_requests",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"*Discarded Requests:*\n{stats['discarded_requests']}"
+            }
+        },
+        {
+            "type": "section",
+            "block_id": "reopened_requests",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"*Reopened Requests:*\n{stats['reopened_requests']}"
+            }
+        },
+        {
+            "type": "divider"
+        },
+        {
+            "type": "section",
+            "block_id": "user_statistics",
+            "text": {
+                "type": "mrkdwn",
+                "text": "*User Statistics:*\n" +
+                        "\n".join([f"<@{user}>: Created {data['requests_created']} requests, Posted {data['comments_posted']} comments"
+                                   for user, data in stats['user_statistics'].items()])
+            }
+        }
+    ]
+
+    # Update the App Home tab
+    client.views_publish(
+        user_id=user_id,
+        view={
+            "type": "home",
+            "blocks": blocks
+        }
+    )
+
+
 # Start the app
 if __name__ == "__main__":
     app.start(port=int(os.environ.get("PORT", 3000)))
