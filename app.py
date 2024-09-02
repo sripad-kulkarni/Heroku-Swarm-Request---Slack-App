@@ -146,16 +146,22 @@ def handle_modal_submission(ack, body, view, client):
         result = client.chat_postMessage(
             channel=channel_id,
             blocks=[
-                # Header block
+                # Header block to mimic attachment title
                 {
-                    "type": "header",
+                    "type": "section",
+                    "block_id": "header-block",
                     "text": {
                         "type": "plain_text",
                         "text": "New Swarm Request",
                         "emoji": True
+                    },
+                    "accessory": {
+                        "type": "image",
+                        "image_url": "https://example.com/your-icon.png",  # Use an appropriate image URL
+                        "alt_text": "Swarm Request Icon"
                     }
                 },
-                # Section with fields
+                # Section with inline fields
                 {
                     "type": "section",
                     "block_id": "details-section",
@@ -182,7 +188,7 @@ def handle_modal_submission(ack, body, view, client):
                         }
                     ]
                 },
-                # Divider block
+                # Divider block to separate sections
                 {
                     "type": "divider"
                 },
