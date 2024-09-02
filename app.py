@@ -148,19 +148,14 @@ def handle_modal_submission(ack, body, view, client):
             blocks=[
                 # Header block
                 {
-                    "type": "section",
-                    "block_id": "header-block",
+                    "type": "header",
                     "text": {
-                        "type": "mrkdwn",
-                        "text": "*New Swarm Request*",
-                    },
-                    "accessory": {
-                        "type": "image",
-                        "image_url": "https://example.com/your-icon.png",  # Use an appropriate image URL
-                        "alt_text": "Swarm Request Icon"
+                        "type": "plain_text",
+                        "text": "New Swarm Request",
+                        "emoji": True
                     }
                 },
-                # Section with inline fields
+                # Section with inline fields for Ticket, Entitlement, Skill Group, Support Tier, and Priority
                 {
                     "type": "section",
                     "block_id": "details-section",
@@ -238,7 +233,6 @@ def handle_modal_submission(ack, body, view, client):
         client.pins_add(channel=channel_id, timestamp=result["ts"])
     except SlackApiError as e:
         logging.error(f"Error posting message: {e.response['error']}")
-
 
     
     # Store the form data in the database
