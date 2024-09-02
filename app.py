@@ -311,15 +311,18 @@ def handle_resolve_button(ack, body, client):
         # Update or insert the row in the database
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute(
-            """
-            INSERT INTO swarm_requests (message_ts, status)
-            VALUES (%s, 'resolved')
-            ON CONFLICT (message_ts) DO UPDATE
-            SET status = 'resolved', updated_at = CURRENT_TIMESTAMP
-            """,
-            (message_ts,)
-        )
+        cur.execute("SELECT id FROM swarm_requests WHERE message_ts = %s", (message_ts,))
+        existing_record = cur.fetchone()
+        if existing_record:
+            # Update the existing swarm request status to 'resolved'
+            cur.execute("""
+                UPDATE swarm_requests
+                SET status = %s, updated_at = NOW()
+                WHERE message_ts = %s
+            """, ('resolved', message_ts))
+        else:
+            logging.error(f"No existing swarm request found for message_ts: {message_ts}")
+
         conn.commit()
         cur.close()
         conn.close()
@@ -369,15 +372,19 @@ def handle_discard_button(ack, body, client):
         # Update or insert the row in the database
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute(
-            """
-            INSERT INTO swarm_requests (message_ts, status)
-            VALUES (%s, 'discarded')
-            ON CONFLICT (message_ts) DO UPDATE
-            SET status = 'discarded', updated_at = CURRENT_TIMESTAMP
-            """,
-            (message_ts,)
-        )
+        cur.execute("SELECT id FROM swarm_requests WHERE message_ts = %s", (message_ts,))
+        existing_record = cur.fetchone()
+
+        if existing_record:
+            # Update the existing swarm request status to 'discarded'
+            cur.execute("""
+                UPDATE swarm_requests
+                SET status = %s, updated_at = NOW()
+                WHERE message_ts = %s
+            """, ('discarded', message_ts))
+        else:
+            logging.error(f"No existing swarm request found for message_ts: {message_ts}")
+
         conn.commit()
         cur.close()
         conn.close()
@@ -471,7 +478,6 @@ def handle_reopen_swarm(ack, body, client):
         """, (new_status, message_ts))
         conn.commit()
 
-        
         conn.commit()
         cur.close()
         conn.close()
