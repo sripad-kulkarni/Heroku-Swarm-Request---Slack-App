@@ -329,6 +329,13 @@ def handle_reopen_swarm(ack, body, client):
             ts=message_ts,
             blocks=updated_blocks
         )
+
+        # Pin the updated message again
+        client.pins_add(
+            channel=channel_id,
+            timestamp=message_ts
+        )
+        
     except SlackApiError as e:
         logging.error(f"Error reopening swarm request: {e.response['error']}")
 
