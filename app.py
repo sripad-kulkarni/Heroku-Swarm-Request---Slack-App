@@ -2,6 +2,8 @@ import os
 import logging
 import psycopg2
 from slack_bolt import App
+from slack_sdk import WebClient
+from slack_sdk.errors import SlackApiError
 
 # Initialize the Slack app
 app = App(token=os.environ.get("SLACK_BOT_TOKEN"))
@@ -137,22 +139,55 @@ def handle_modal_submission(ack, body, view, client):
     
     # Get the channel ID from the context
     channel_id = body["view"]["private_metadata"]
+    user_id = body["user"]["id"]
     
-    # Post message to the channel
+    # Post message to the channel with buttons
     try:
-        client.chat_postMessage(
+        result = client.chat_postMessage(
             channel=channel_id,
-            text=f"*New Swarm Request*\n"
-                 f"Ticket: {ticket}\n"
-                 f"Entitlement: {entitlement}\n"
-                 f"Skill Group: {skill_group}\n"
-                 f"Support Tier: {support_tier}\n"
-                 f"Priority: {priority}\n"
-                 f"Issue Description: {issue_description}\n"
-                 f"Help Required: {help_required}"
+            blocks=[
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"*New Swarm Request*\n"
+                                f"Ticket: {ticket}\n"
+                                f"Entitlement: {entitlement}\n"
+                                f"Skill Group: {skill_group}\n"
+                                f"Support Tier: {support_tier}\n"
+                                f"Priority: {priority}\n"
+                                f"Issue Description: {issue_description}\n"
+                                f"Help Required: {help_required}"
+                    }
+                },
+                {
+                    "type": "actions",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "text": {"type": "plain_text", "text": "Resolve Swarm"},
+                            "style": "primary",
+                            "value": "resolve",
+                            "action_id": "resolve_button"
+                        },
+                        {
+                            "type": "button",
+                            "text": {"type": "plain_text", "text": "Discard Swarm"},
+                            "style": "danger",
+                            "value": "discard",
+                            "action_id": "discard_button"
+                        }
+                    ]
+                }
+            ],
+            text="New Swarm Request",
+            user=user_id,
+            unfurl_links=True
         )
-    except Exception as e:
-        print(f"Error posting message: {e}")
+        # Pin the message to the channel
+        client.pins_add(channel=channel_id, timestamp=result["ts"])
+    except SlackApiError as e:
+        logging.error(f"Error posting message: {e.response['error']}")
     
     # Store the form data in the database
     conn = get_db_connection()
@@ -160,18 +195,138 @@ def handle_modal_submission(ack, body, view, client):
     try:
         cur.execute(
             """
-            INSERT INTO swarm_requests (ticket, entitlement, skill_group, support_tier, priority, issue_description, help_required)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO swarm_requests (ticket, entitlement, skill_group, support_tier, priority, issue_description, help_required, user_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """,
-            (ticket, entitlement, skill_group, support_tier, priority, issue_description, help_required)
+            (ticket, entitlement, skill_group, support_tier, priority, issue_description, help_required, user_id)
         )
         conn.commit()
     except Exception as e:
-        print(f"Error storing data in database: {e}")
+        logging.error(f"Error storing data in database: {e}")
     finally:
         cur.close()
         conn.close()
 
+# Handle the "Resolve Swarm" button click
+@app.action("resolve_button")
+def handle_resolve_button(ack, body, client):
+    ack()
+    user_id = body["user"]["id"]
+    channel_id = body["channel"]["id"]
+    message_ts = body["message"]["ts"]
+
+    # Unpin the message and update it with a resolved note
+    try:
+        client.pins_remove(channel=channel_id, timestamp=message_ts)
+        client.chat_update(
+            channel=channel_id,
+            ts=message_ts,
+            blocks=body["message"]["blocks"] + [
+                {
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": f"Swarm request resolved by <@{user_id}>."}
+                },
+                {
+                    "type": "actions",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "text": {"type": "plain_text", "text": "Re-Open Swarm"},
+                            "style": "primary",
+                            "value": "reopen",
+                            "action_id": "reopen_button"
+                        }
+                    ]
+                }
+            ]
+        )
+    except SlackApiError as e:
+        logging.error(f"Error resolving swarm request: {e.response['error']}")
+
+# Handle the "Discard Swarm" button click
+@app.action("discard_button")
+def handle_discard_button(ack, body, client):
+    ack()
+    user_id = body["user"]["id"]
+    channel_id = body["channel"]["id"]
+    message_ts = body["message"]["ts"]
+
+    # Unpin the message and update it with a discarded note
+    try:
+        client.pins_remove(channel=channel_id, timestamp=message_ts)
+        client.chat_update(
+            channel=channel_id,
+            ts=message_ts,
+            blocks=body["message"]["blocks"] + [
+                {
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": f"Swarm request discarded by <@{user_id}>."}
+                },
+                {
+                    "type": "actions",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "text": {"type": "plain_text", "text": "Re-Open Swarm"},
+                            "style": "primary",
+                            "value": "reopen",
+                            "action_id": "reopen_button"
+                        }
+                    ]
+                }
+            ]
+        )
+    except SlackApiError as e:
+        logging.error(f"Error discarding swarm request: {e.response['error']}")
+
+# Handle the "Re-Open Swarm" button click
+@app.action("reopen_button")
+def handle_reopen_button(ack, body, client):
+    ack()
+    channel_id = body["channel"]["id"]
+    message_ts = body["message"]["ts"]
+
+    # Re-pin the message and update it to remove the resolved or discarded note
+    try:
+        client.pins_add(channel=channel_id, timestamp=message_ts)
+        client.chat_update(
+            channel=channel_id,
+            ts=message_ts,
+            blocks=body["message"]["blocks"][:-2]  # Remove the last two blocks (the note and the button)
+        )
+    except SlackApiError as e:
+        logging.error(f"Error reopening swarm request: {e.response['error']}")
+
+# Function to remind user after 24 hours
+def remind_user_after_24_hours(client, channel_id, user_id, message_ts):
+    try:
+        # Check if no action was taken on the swarm request
+        response = client.conversations_history(channel=channel_id, latest=message_ts, inclusive=True, limit=1)
+        if response["messages"][0]["text"].endswith("Swarm request unresolved."):
+            client.chat_postMessage(
+                channel=channel_id,
+                text=f"<@{user_id}> Reminder: The swarm request is still unresolved. Do you still need help?",
+                blocks=[
+                    {
+                        "type": "section",
+                        "text": {"type": "mrkdwn", "text": f"<@{user_id}> This swarm request needs action."}
+                    },
+                    {
+                        "type": "actions",
+                        "elements": [
+                            {
+                                "type": "button",
+                                "text": {"type": "plain_text", "text": "Still Need Help?"},
+                                "style": "primary",
+                                "value": "still_need_help",
+                                "action_id": "still_need_help_button"
+                            }
+                        ]
+                    }
+                ]
+            )
+    except SlackApiError as e:
+        logging.error(f"Error sending reminder: {e.response['error']}")
 
 # Start the app
 if __name__ == "__main__":
