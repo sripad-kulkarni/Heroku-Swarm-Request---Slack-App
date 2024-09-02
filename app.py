@@ -427,16 +427,16 @@ def app_home_opened(client, event):
         # Build the statistics blocks
         blocks = [
             SectionBlock(
-                text=MarkdownTextObject(text=f"*Total Swarm Requests:* {total_requests}")
+                text=TextObject(type="mrkdwn", text=f"*Total Swarm Requests:* {total_requests}")
             ),
             SectionBlock(
-                text=MarkdownTextObject(text=f"*Total Open Requests:* {total_open}")
+                text=TextObject(type="mrkdwn", text=f"*Total Open Requests:* {total_open}")
             ),
             SectionBlock(
-                text=MarkdownTextObject(text=f"*Total Resolved Requests:* {total_resolved}")
+                text=TextObject(type="mrkdwn", text=f"*Total Resolved Requests:* {total_resolved}")
             ),
             SectionBlock(
-                text=MarkdownTextObject(text=f"*Total Discarded Requests:* {total_discarded}")
+                text=TextObject(type="mrkdwn", text=f"*Total Discarded Requests:* {total_discarded}")
             ),
             DividerBlock(),
         ]
@@ -461,7 +461,7 @@ def app_home_opened(client, event):
 
             blocks.append(
                 SectionBlock(
-                    text=MarkdownTextObject(text=f"{user_name}: {count} requests")
+                    text=TextObject(type="mrkdwn", text=f"{user_name}: {count} requests")
                 )
             )
 
