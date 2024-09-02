@@ -292,7 +292,7 @@ def handle_reopen_swarm(ack, body, client):
     # Get message details
     channel_id = body["channel"]["id"]
     ts = body["message"]["ts"]
-    
+
     # Post a new message in the thread indicating the swarm request has been reopened
     client.chat_postMessage(
         channel=channel_id,
@@ -300,12 +300,12 @@ def handle_reopen_swarm(ack, body, client):
         text="The swarm request has been reopened and needs attention."
     )
 
-    # Update the original message to remove any previous status updates and buttons
+    # Filter out the "resolved" section and "Re-Open Swarm" button from the message blocks
     updated_blocks = [
         block for block in body["message"]["blocks"]
         if not (
-            block.get("type") == "actions" and
-            any(button.get("text", {}).get("text") == "Re-Open Swarm" for button in block.get("elements", []))
+            block.get("type") == "section" and
+            "Swarm request resolved by" in block.get("text", {}).get("text", "")
         )
     ]
     updated_blocks.append(
@@ -326,6 +326,7 @@ def handle_reopen_swarm(ack, body, client):
         )
     except SlackApiError as e:
         logging.error(f"Error reopening swarm request: {e.response['error']}")
+
 
 
 
