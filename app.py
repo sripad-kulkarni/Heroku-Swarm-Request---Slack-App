@@ -146,18 +146,13 @@ def handle_modal_submission(ack, body, view, client):
         result = client.chat_postMessage(
             channel=channel_id,
             blocks=[
-                # Header block with image
+                # Header block
                 {
                     "type": "header",
                     "text": {
                         "type": "plain_text",
                         "text": "New Swarm Request",
                         "emoji": True
-                    },
-                    "accessory": {
-                        "type": "image",
-                        #"image_url": "https://salesforce.widen.net/s/ptjwpmqdqs/adobestock_343521989",  # Replace with your image URL
-                        "alt_text": "Swarm Model"
                     }
                 },
                 # Section with inline fields for Ticket, Entitlement, Skill Group, Support Tier, and Priority
