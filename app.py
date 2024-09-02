@@ -98,11 +98,11 @@ def handle_swarm_request(ack, body, client):
                         "action_id": "priority_select",
                         "placeholder": {"type": "plain_text", "text": "Select Priority"},
                         "options": [
-                            {"text": {"type": "plain_text", "text": "Critical"}, "value": "critical"},
-                            {"text": {"type": "plain_text", "text": "Urgent"}, "value": "urgent"},
-                            {"text": {"type": "plain_text", "text": "High"}, "value": "high"},
-                            {"text": {"type": "plain_text", "text": "Normal"}, "value": "normal"},
-                            {"text": {"type": "plain_text", "text": "Low"}, "value": "low"}
+                            {"text": {"type": "plain_text", "text": "Critical"}, "value": "Critical"},
+                            {"text": {"type": "plain_text", "text": "Urgent"}, "value": "Urgent"},
+                            {"text": {"type": "plain_text", "text": "High"}, "value": "High"},
+                            {"text": {"type": "plain_text", "text": "Normal"}, "value": "Normal"},
+                            {"text": {"type": "plain_text", "text": "Low"}, "value": "Low"}
                         ]
                     },
                     "label": {"type": "plain_text", "text": "Priority"}
@@ -133,7 +133,7 @@ def handle_modal_submission(ack, body, view, client):
     entitlement = view["state"]["values"]["entitlement"]["entitlement_select"]["selected_option"]["value"]
     skill_group = view["state"]["values"]["skill_group"]["skill_group_select"]["selected_option"]["value"]
     support_tier = view["state"]["values"]["support_tier"]["support_tier_select"]["selected_option"]["value"]
-    priority = view["state"]["values"]["priority"]["priority_select"]["selected_option"]["text"]
+    priority = view["state"]["values"]["priority"]["priority_select"]["selected_option"]["value"]
     issue_description = view["state"]["values"]["issue_description"]["issue_description_input"]["value"]
     help_required = view["state"]["values"]["help_required"]["help_required_input"]["value"]
     
