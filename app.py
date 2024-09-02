@@ -289,19 +289,45 @@ def handle_discard_button(ack, body, client):
 @app.action("reopen_button")
 def handle_reopen_button(ack, body, client):
     ack()
+    user_id = body["user"]["id"]
     channel_id = body["channel"]["id"]
     message_ts = body["message"]["ts"]
 
-    # Re-pin the message and update it to remove the resolved or discarded note
+    # Update the message to restore the original buttons
     try:
-        client.pins_add(channel=channel_id, timestamp=message_ts)
         client.chat_update(
             channel=channel_id,
             ts=message_ts,
-            blocks=body["message"]["blocks"][:-2]  # Remove the last two blocks (the note and the button)
+            blocks=[
+                {
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": f"*New Swarm Request*\nPlease take action."}
+                },
+                # Restore the original buttons
+                {
+                    "type": "actions",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "text": {"type": "plain_text", "text": "Resolve Swarm"},
+                            "style": "primary",
+                            "value": "resolve",
+                            "action_id": "resolve_button"
+                        },
+                        {
+                            "type": "button",
+                            "text": {"type": "plain_text", "text": "Discard Swarm"},
+                            "style": "danger",
+                            "value": "discard",
+                            "action_id": "discard_button"
+                        }
+                    ]
+                }
+            ]
         )
     except SlackApiError as e:
         logging.error(f"Error reopening swarm request: {e.response['error']}")
+
 
 # Function to remind user after 24 hours
 def remind_user_after_24_hours(client, channel_id, user_id, message_ts):
