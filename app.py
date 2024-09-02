@@ -140,6 +140,16 @@ def handle_modal_submission(ack, body, view, client):
     # Get the channel ID from the context
     channel_id = body["view"]["private_metadata"]
     user_id = body["user"]["id"]
+
+
+    # Fetch user info to display in the message
+    try:
+        user_info = client.users_info(user=user_id)
+        user_name = user_info["user"]["real_name"]
+    except SlackApiError as e:
+        user_name = "Unknown User"
+        logging.error(f"Error fetching user info: {e.response['error']}")
+    
     
     # Post message to the channel with buttons
     try:
@@ -179,7 +189,12 @@ def handle_modal_submission(ack, body, view, client):
                         {
                             "type": "mrkdwn",
                             "text": "*Priority:*\n" + priority
+                        },
+                        {
+                            "type": "mrkdwn", 
+                            "text": "*Opened By:*\n" + user_name
                         }
+
                     ]
                 },
                 # Divider block to separate sections
