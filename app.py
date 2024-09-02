@@ -463,6 +463,7 @@ def get_user_info(client, user_id):
 
 
 @app.event("app_home_opened")
+@app.event("app_home_opened")
 def app_home_opened(client, event):
     user_id = event["user"]
 
@@ -540,21 +541,28 @@ def app_home_opened(client, event):
         user_requests = cur.fetchall()
         conn.close()
 
-        # Add user request statistics blocks
-        for user_id, count in user_requests:
-            try:
-                user_info = client.users_info(user=user_id)
-                user_name = user_info["user"]["real_name"]
-            except SlackApiError:
-                user_name = user_id  # Fallback to user ID if name is not available
+        # Collect user IDs for bulk fetching
+        user_ids = [user_id for user_id, _ in user_requests]
+        user_names = {}
 
+        # Fetch user information in bulk
+        for uid in user_ids:
+            try:
+                user_info = client.users_info(user=uid)
+                user_names[uid] = user_info["user"]["real_name"]
+            except SlackApiError:
+                user_names[uid] = f"<@{uid}>"  # Fallback to mention format
+
+        # Add user request statistics blocks
+        for uid, count in user_requests:
+            user_name_display = user_names.get(uid, f"<@{uid}>")
             blocks.append(
                 {
                     "type": "section",
-                    "block_id": f"user_{user_id}",
+                    "block_id": f"user_{uid}",
                     "text": {
                         "type": "mrkdwn",
-                        "text": f"{user_name}: {count} requests"
+                        "text": f"{user_name_display}: {count} requests"
                     }
                 }
             )
