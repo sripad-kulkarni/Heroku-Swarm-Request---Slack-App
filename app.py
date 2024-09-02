@@ -289,43 +289,44 @@ def handle_discard_button(ack, body, client):
 @app.action("reopen_button")
 def handle_reopen_swarm(ack, body, client):
     ack()
-    # Get message details
+    user_id = body["user"]["id"]
     channel_id = body["channel"]["id"]
-    ts = body["message"]["ts"]
+    message_ts = body["message"]["ts"]
 
     # Post a new message in the thread indicating the swarm request has been reopened
     client.chat_postMessage(
         channel=channel_id,
-        thread_ts=ts,
+        thread_ts=message_ts,
         text="The swarm request has been reopened and needs attention."
     )
 
-    # Define the updated blocks without the "Swarm request resolved by" line and "Re-Open Swarm" button
-    updated_blocks = [
-        block for block in body["message"]["blocks"]
-        if not (
-            (block.get("type") == "section" and
-             "Swarm request resolved by" in block.get("text", {}).get("text", "")) or
-            (block.get("type") == "actions" and
-             any(button.get("text", {}).get("text", "") == "Re-Open Swarm" for button in block.get("elements", [])))
-        )
-    ]
-
-    # Add the "Resolve Swarm" and "Discard Swarm" buttons back
-    updated_blocks.append(
-        {
-            "type": "actions",
-            "elements": [
-                {"type": "button", "text": {"type": "plain_text", "text": "Resolve Swarm"}, "style": "primary", "action_id": "resolve_button"},
-                {"type": "button", "text": {"type": "plain_text", "text": "Discard Swarm"}, "style": "danger", "action_id": "discard_button"}
-            ]
-        }
-    )
-
+    # Update the original message to show the previous two buttons
     try:
+        # Prepare updated blocks for the original message
+        updated_blocks = [
+            block for block in body["message"]["blocks"]
+            if not (
+                (block.get("type") == "section" and
+                 "Swarm request resolved by" in block.get("text", {}).get("text", "")) or
+                (block.get("type") == "actions" and
+                 any(button.get("text", {}).get("text", "") == "Re-Open Swarm" for button in block.get("elements", [])))
+            )
+        ]
+        
+        # Re-add the "Resolve Swarm" and "Discard Swarm" buttons
+        updated_blocks.append(
+            {
+                "type": "actions",
+                "elements": [
+                    {"type": "button", "text": {"type": "plain_text", "text": "Resolve Swarm"}, "style": "primary", "action_id": "resolve_button"},
+                    {"type": "button", "text": {"type": "plain_text", "text": "Discard Swarm"}, "style": "danger", "action_id": "discard_button"}
+                ]
+            }
+        )
+
         client.chat_update(
             channel=channel_id,
-            ts=ts,
+            ts=message_ts,
             blocks=updated_blocks
         )
     except SlackApiError as e:
