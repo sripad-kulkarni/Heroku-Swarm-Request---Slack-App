@@ -435,7 +435,7 @@ def handle_reopen_swarm(ack, body, client):
         # Update or insert the row in the database
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute(
+        '''cur.execute(
             """
             INSERT INTO swarm_requests (message_ts, status)
             VALUES (%s, 'reopened')
@@ -443,7 +443,35 @@ def handle_reopen_swarm(ack, body, client):
             SET status = 'reopened', updated_at = CURRENT_TIMESTAMP
             """,
             (message_ts,)
-        )
+        )'''
+
+        # Fetch existing swarm request data using the message timestamp
+        cur.execute("""
+            SELECT ticket, entitlement, skill_group, support_tier, priority,
+                   issue_description, help_required, user_id, channel_id
+            FROM swarm_requests
+            WHERE message_ts = %s
+        """, (message_ts,))
+        swarm_data = cur.fetchone()
+
+        if not swarm_data:
+            logging.error(f"Swarm request not found for message_ts: {message_ts}")
+            conn.close()
+            return
+
+        # Ensure you have all data from the database
+        ticket, entitlement, skill_group, support_tier, priority, issue_description, help_required, user_id, channel_id = swarm_data
+
+        # Update the status, preserving other fields
+        cur.execute("""
+            UPDATE swarm_requests
+            SET status = %s,
+                updated_at = NOW()
+            WHERE message_ts = %s
+        """, (new_status, message_ts))
+        conn.commit()
+
+        
         conn.commit()
         cur.close()
         conn.close()
