@@ -5,7 +5,7 @@ from slack_bolt import App
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 from slack_sdk.models.blocks import SectionBlock, ActionsBlock, DividerBlock
-from slack_sdk.models import TextObject
+from slack_sdk.models import PlainTextObject, MarkdownTextObject
 
 
 # Initialize the Slack app
@@ -401,6 +401,7 @@ def get_user_info(client, user_id):
         return user_id  # Return the user_id if fetching fails
 
 
+
 @app.event("app_home_opened")
 def app_home_opened(client, event):
     user_id = event["user"]
@@ -430,16 +431,16 @@ def app_home_opened(client, event):
         # Build the statistics blocks
         blocks = [
             SectionBlock(
-                text=TextObject(type="mrkdwn", text=f"*Total Swarm Requests:* {total_requests}")
+                text=MarkdownTextObject(text=f"*Total Swarm Requests:* {total_requests}")
             ),
             SectionBlock(
-                text=TextObject(type="mrkdwn", text=f"*Total Open Requests:* {total_open}")
+                text=MarkdownTextObject(text=f"*Total Open Requests:* {total_open}")
             ),
             SectionBlock(
-                text=TextObject(type="mrkdwn", text=f"*Total Resolved Requests:* {total_resolved}")
+                text=MarkdownTextObject(text=f"*Total Resolved Requests:* {total_resolved}")
             ),
             SectionBlock(
-                text=TextObject(type="mrkdwn", text=f"*Total Discarded Requests:* {total_discarded}")
+                text=MarkdownTextObject(text=f"*Total Discarded Requests:* {total_discarded}")
             ),
             DividerBlock(),
         ]
@@ -464,7 +465,7 @@ def app_home_opened(client, event):
 
             blocks.append(
                 SectionBlock(
-                    text=TextObject(type="mrkdwn", text=f"{user_name}: {count} requests")
+                    text=MarkdownTextObject(text=f"{user_name}: {count} requests")
                 )
             )
 
@@ -479,6 +480,7 @@ def app_home_opened(client, event):
 
     except SlackApiError as e:
         logging.error(f"Error opening app home: {e.response['error']}")
+
 
 
 # Start the app
