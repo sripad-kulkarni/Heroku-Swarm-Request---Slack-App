@@ -213,26 +213,13 @@ def handle_resolve_button(ack, body, client):
     ack()
     user_id = body["user"]["id"]
     channel_id = body["channel"]["id"]
-    message_ts = body["message"]["ts"]
+    message_id = body["message"]["text"]  # Use message text as ID
 
-    # Update the status in the database
-    conn = get_db_connection()
-    cur = conn.cursor()
     try:
-        cur.execute(
-            "UPDATE swarm_requests SET status = %s WHERE channel_id = %s AND message_ts = %s",
-            ('resolved', channel_id, message_ts)
-        )
-        conn.commit()
-    except Exception as e:
-        logging.error(f"Error updating status in database: {e}")
-    finally:
-        cur.close()
-        conn.close()
-
-    # Unpin the message and update it with a resolved note
-    try:
-        client.pins_remove(channel=channel_id, timestamp=message_ts)
+        # Remove the pin from the message
+        client.pins_remove(channel=channel_id, timestamp=message_id)
+        
+        # Update the original message to reflect the resolved status
         updated_blocks = [
             block for block in body["message"]["blocks"] if block["type"] != "actions"
         ] + [
@@ -255,39 +242,41 @@ def handle_resolve_button(ack, body, client):
         ]
         client.chat_update(
             channel=channel_id,
-            ts=message_ts,
+            ts=message_id,
             blocks=updated_blocks
         )
+
+        # Update or insert the row in the database
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO swarm_requests (id, status)
+            VALUES (%s, 'resolved')
+            ON CONFLICT (id) DO UPDATE
+            SET status = 'resolved', updated_at = CURRENT_TIMESTAMP
+            """,
+            (message_id,)
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        
     except SlackApiError as e:
         logging.error(f"Error resolving swarm request: {e.response['error']}")
 
-
-# Handle the "Discard Swarm" button click
 @app.action("discard_button")
 def handle_discard_button(ack, body, client):
     ack()
     user_id = body["user"]["id"]
     channel_id = body["channel"]["id"]
-    message_ts = body["message"]["ts"]
+    message_id = body["message"]["text"]  # Use message text as ID
 
-    # Update the status in the database
-    conn = get_db_connection()
-    cur = conn.cursor()
     try:
-        cur.execute(
-            "UPDATE swarm_requests SET status = %s WHERE channel_id = %s AND message_ts = %s",
-            ('discarded', channel_id, message_ts)
-        )
-        conn.commit()
-    except Exception as e:
-        logging.error(f"Error updating status in database: {e}")
-    finally:
-        cur.close()
-        conn.close()
-
-    # Unpin the message and update it with a discarded note
-    try:
-        client.pins_remove(channel=channel_id, timestamp=message_ts)
+        # Remove the pin from the message
+        client.pins_remove(channel=channel_id, timestamp=message_id)
+        
+        # Update the original message to reflect the discarded status
         updated_blocks = [
             block for block in body["message"]["blocks"] if block["type"] != "actions"
         ] + [
@@ -310,31 +299,45 @@ def handle_discard_button(ack, body, client):
         ]
         client.chat_update(
             channel=channel_id,
-            ts=message_ts,
+            ts=message_id,
             blocks=updated_blocks
         )
+
+        # Update or insert the row in the database
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO swarm_requests (id, status)
+            VALUES (%s, 'discarded')
+            ON CONFLICT (id) DO UPDATE
+            SET status = 'discarded', updated_at = CURRENT_TIMESTAMP
+            """,
+            (message_id,)
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        
     except SlackApiError as e:
         logging.error(f"Error discarding swarm request: {e.response['error']}")
-
-
 
 @app.action("reopen_button")
 def handle_reopen_swarm(ack, body, client):
     ack()
     user_id = body["user"]["id"]
     channel_id = body["channel"]["id"]
-    message_ts = body["message"]["ts"]
+    message_id = body["message"]["text"]  # Use message text as ID
 
-    # Post a new message in the thread indicating the swarm request has been reopened
-    client.chat_postMessage(
-        channel=channel_id,
-        thread_ts=message_ts,
-        text="The swarm request has been reopened and needs attention."
-    )
-
-    # Update the original message to show the previous two buttons
     try:
-        # Prepare updated blocks for the original message
+        # Post a new message in the thread indicating the swarm request has been reopened
+        client.chat_postMessage(
+            channel=channel_id,
+            thread_ts=message_id,
+            text="The swarm request has been reopened and needs attention."
+        )
+
+        # Update the original message to show the previous two buttons
         updated_blocks = [
             block for block in body["message"]["blocks"]
             if not (
@@ -345,7 +348,6 @@ def handle_reopen_swarm(ack, body, client):
             )
         ]
         
-        # Re-add the "Resolve Swarm" and "Discard Swarm" buttons
         updated_blocks.append(
             {
                 "type": "actions",
@@ -358,19 +360,34 @@ def handle_reopen_swarm(ack, body, client):
 
         client.chat_update(
             channel=channel_id,
-            ts=message_ts,
+            ts=message_id,
             blocks=updated_blocks
         )
 
         # Pin the updated message again
         client.pins_add(
             channel=channel_id,
-            timestamp=message_ts
+            timestamp=message_id
         )
+
+        # Update or insert the row in the database
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO swarm_requests (id, status)
+            VALUES (%s, 'open')
+            ON CONFLICT (id) DO UPDATE
+            SET status = 'open', updated_at = CURRENT_TIMESTAMP
+            """,
+            (message_id,)
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
         
     except SlackApiError as e:
         logging.error(f"Error reopening swarm request: {e.response['error']}")
-
 
 
 # Function to remind user after 24 hours
