@@ -207,67 +207,84 @@ def handle_modal_submission(ack, body, view, client):
         cur.close()
         conn.close()
 
-
-@app.action("resolve_swarm")
-def handle_resolve_swarm(ack, body, client):
+# Handle the "Resolve Swarm" button click
+@app.action("resolve_button")
+def handle_resolve_button(ack, body, client):
     ack()
-    # Get message details
+    user_id = body["user"]["id"]
     channel_id = body["channel"]["id"]
-    ts = body["message"]["ts"]
-    
-    # Update the original message to indicate it has been resolved
-    client.chat_update(
-        channel=channel_id,
-        ts=ts,
-        text=f"{body['message']['text']}\n\n*Status: Resolved*",
-        blocks=[
-            {"type": "section", "text": {"type": "mrkdwn", "text": f"{body['message']['text']}\n\n*Status: Resolved*"}},
+    message_ts = body["message"]["ts"]
+
+    # Unpin the message and update it with a resolved note, removing the buttons
+    try:
+        client.pins_remove(channel=channel_id, timestamp=message_ts)
+        updated_blocks = [
+            block for block in body["message"]["blocks"] if block["type"] != "actions"
+        ] + [
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": f"Swarm request resolved by <@{user_id}>."}
+            },
             {
                 "type": "actions",
                 "elements": [
-                    {"type": "button", "text": {"type": "plain_text", "text": "Re-Open Swarm"}, "style": "primary", "action_id": "reopen_swarm"}
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "Re-Open Swarm"},
+                        "style": "primary",
+                        "value": "reopen",
+                        "action_id": "reopen_button"
+                    }
                 ]
             }
         ]
-    )
+        client.chat_update(
+            channel=channel_id,
+            ts=message_ts,
+            blocks=updated_blocks
+        )
+    except SlackApiError as e:
+        logging.error(f"Error resolving swarm request: {e.response['error']}")
 
-    # Post a new message in the thread
-    client.chat_postMessage(
-        channel=channel_id,
-        thread_ts=body["message"]["ts"],
-        text="The swarm request has been resolved and needs no further action."
-    )
-
-
-@app.action("discard_swarm")
-def handle_discard_swarm(ack, body, client):
+# Handle the "Discard Swarm" button click
+@app.action("discard_button")
+def handle_discard_button(ack, body, client):
     ack()
-    # Get message details
+    user_id = body["user"]["id"]
     channel_id = body["channel"]["id"]
-    ts = body["message"]["ts"]
-    
-    # Update the original message to indicate it has been discarded
-    client.chat_update(
-        channel=channel_id,
-        ts=ts,
-        text=f"{body['message']['text']}\n\n*Status: Discarded*",
-        blocks=[
-            {"type": "section", "text": {"type": "mrkdwn", "text": f"{body['message']['text']}\n\n*Status: Discarded*"}},
+    message_ts = body["message"]["ts"]
+
+    # Unpin the message and update it with a discarded note, removing the buttons
+    try:
+        client.pins_remove(channel=channel_id, timestamp=message_ts)
+        updated_blocks = [
+            block for block in body["message"]["blocks"] if block["type"] != "actions"
+        ] + [
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": f"Swarm request discarded by <@{user_id}>."}
+            },
             {
                 "type": "actions",
                 "elements": [
-                    {"type": "button", "text": {"type": "plain_text", "text": "Re-Open Swarm"}, "style": "primary", "action_id": "reopen_swarm"}
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "Re-Open Swarm"},
+                        "style": "primary",
+                        "value": "reopen",
+                        "action_id": "reopen_button"
+                    }
                 ]
             }
         ]
-    )
+        client.chat_update(
+            channel=channel_id,
+            ts=message_ts,
+            blocks=updated_blocks
+        )
+    except SlackApiError as e:
+        logging.error(f"Error discarding swarm request: {e.response['error']}")
 
-    # Post a new message in the thread
-    client.chat_postMessage(
-        channel=channel_id,
-        thread_ts=body["message"]["ts"],
-        text="The swarm request has been discarded and needs no further action."
-    )
 
 
 @app.action("reopen_swarm")
