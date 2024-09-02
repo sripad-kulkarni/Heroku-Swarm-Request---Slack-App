@@ -148,40 +148,41 @@ def handle_modal_submission(ack, body, view, client):
             blocks=[
                 {
                     "type": "section",
+                    "block_id": "swarm_request_section",
                     "text": {
                         "type": "mrkdwn",
                         "text": f"*New Swarm Request*\n"
-                                f"Ticket: {ticket}\n"
-                                f"Entitlement: {entitlement}\n"
-                                f"Skill Group: {skill_group}\n"
-                                f"Support Tier: {support_tier}\n"
-                                f"Priority: {priority}\n"
-                                f"Issue Description: {issue_description}\n"
-                                f"Help Required: {help_required}"
+                                f"*Ticket:* {ticket}\n"
+                                f"*Entitlement:* {entitlement}\n"
+                                f"*Skill Group:* {skill_group}\n"
+                                f"*Support Tier:* {support_tier}\n"
+                                f"*Priority:* {priority}\n"
+                                f"*Issue Description:* {issue_description}\n"
+                                f"*Help Required:* {help_required}"
                     }
                 },
                 {
                     "type": "actions",
+                    "block_id": "swarm_actions",
                     "elements": [
                         {
                             "type": "button",
                             "text": {"type": "plain_text", "text": "Resolve Swarm"},
                             "style": "primary",
-                            "value": "resolve",
+                            "value": f"resolve:{ticket}",
                             "action_id": "resolve_button"
                         },
                         {
                             "type": "button",
                             "text": {"type": "plain_text", "text": "Discard Swarm"},
                             "style": "danger",
-                            "value": "discard",
+                            "value": f"discard:{ticket}",
                             "action_id": "discard_button"
                         }
                     ]
                 }
             ],
             text="New Swarm Request",
-            user=user_id,
             unfurl_links=True
         )
         # Pin the message to the channel
@@ -206,6 +207,7 @@ def handle_modal_submission(ack, body, view, client):
     finally:
         cur.close()
         conn.close()
+
 
 # Handle the "Resolve Swarm" button click
 @app.action("resolve_button")
