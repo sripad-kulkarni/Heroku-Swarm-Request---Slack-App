@@ -4,8 +4,8 @@ import psycopg2
 from slack_bolt import App
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
-from slack_sdk.models.blocks import SectionBlock, MarkdownTextObject, ActionsBlock, ContextBlock, DividerBlock
-from slack_sdk.models.blocks.elements import PlainTextObject, ButtonElement
+from slack_sdk.models.blocks import SectionBlock, ActionsBlock, DividerBlock
+from slack_sdk.models import MarkdownTextObject, PlainTextObject
 
 
 # Initialize the Slack app
@@ -430,16 +430,16 @@ def app_home_opened(client, event):
         # Build the statistics blocks
         blocks = [
             SectionBlock(
-                text=MarkdownTextObject(text="*Total Swarm Requests:* {total_requests}".format(total_requests=total_requests))
+                text=MarkdownTextObject(text=f"*Total Swarm Requests:* {total_requests}")
             ),
             SectionBlock(
-                text=MarkdownTextObject(text="*Total Open Requests:* {total_open}".format(total_open=total_open))
+                text=MarkdownTextObject(text=f"*Total Open Requests:* {total_open}")
             ),
             SectionBlock(
-                text=MarkdownTextObject(text="*Total Resolved Requests:* {total_resolved}".format(total_resolved=total_resolved))
+                text=MarkdownTextObject(text=f"*Total Resolved Requests:* {total_resolved}")
             ),
             SectionBlock(
-                text=MarkdownTextObject(text="*Total Discarded Requests:* {total_discarded}".format(total_discarded=total_discarded))
+                text=MarkdownTextObject(text=f"*Total Discarded Requests:* {total_discarded}")
             ),
             DividerBlock(),
         ]
@@ -464,7 +464,7 @@ def app_home_opened(client, event):
 
             blocks.append(
                 SectionBlock(
-                    text=MarkdownTextObject(text="{user_name}: {count} requests".format(user_name=user_name, count=count))
+                    text=MarkdownTextObject(text=f"{user_name}: {count} requests")
                 )
             )
 
@@ -479,7 +479,7 @@ def app_home_opened(client, event):
 
     except SlackApiError as e:
         logging.error(f"Error opening app home: {e.response['error']}")
-
+        
 
 # Start the app
 if __name__ == "__main__":
