@@ -286,7 +286,6 @@ def handle_discard_button(ack, body, client):
         logging.error(f"Error discarding swarm request: {e.response['error']}")
 
 
-# Handle the "Re-Open Swarm" button click
 @app.action("reopen_button")
 def handle_reopen_swarm(ack, body, client):
     ack()
@@ -301,21 +300,29 @@ def handle_reopen_swarm(ack, body, client):
         text="The swarm request has been reopened and needs attention."
     )
 
-    # Update the original message to show the previous two buttons
-    client.chat_update(
-        channel=channel_id,
-        ts=ts,
-        blocks=[
-            {"type": "section", "text": {"type": "mrkdwn", "text": f"{body['message']['text']}\n\n*Status: Reopened - Needs Attention*"}},
-            {
-                "type": "actions",
-                "elements": [
-                    {"type": "button", "text": {"type": "plain_text", "text": "Resolve Swarm"}, "style": "primary", "action_id": "resolve_button"},
-                    {"type": "button", "text": {"type": "plain_text", "text": "Discard Swarm"}, "style": "danger", "action_id": "discard_button"}
-                ]
-            }
-        ]
-    )
+    # Update the original message to remove the "resolved" or "discarded" text and show the previous two buttons
+    updated_blocks = [
+        block for block in body["message"]["blocks"]
+        if not (block.get("type") == "section" and "Swarm request resolved by" in block.get("text", {}).get("text", ""))
+    ]
+    updated_blocks += [
+        {
+            "type": "actions",
+            "elements": [
+                {"type": "button", "text": {"type": "plain_text", "text": "Resolve Swarm"}, "style": "primary", "action_id": "resolve_button"},
+                {"type": "button", "text": {"type": "plain_text", "text": "Discard Swarm"}, "style": "danger", "action_id": "discard_button"}
+            ]
+        }
+    ]
+
+    try:
+        client.chat_update(
+            channel=channel_id,
+            ts=ts,
+            blocks=updated_blocks
+        )
+    except SlackApiError as e:
+        logging.error(f"Error reopening swarm request: {e.response['error']}")
 
 
 # Function to remind user after 24 hours
