@@ -250,9 +250,9 @@ def handle_resolve_button(ack, body, client):
         cur = conn.cursor()
         cur.execute(
             """
-            INSERT INTO swarm_requests (id, status)
+            INSERT INTO swarm_requests (message_ts, status)
             VALUES (%s, 'resolved')
-            ON CONFLICT (id) DO UPDATE
+            ON CONFLICT (message_ts) DO UPDATE
             SET status = 'resolved', updated_at = CURRENT_TIMESTAMP
             """,
             (message_ts,)
@@ -308,9 +308,9 @@ def handle_discard_button(ack, body, client):
         cur = conn.cursor()
         cur.execute(
             """
-            INSERT INTO swarm_requests (id, status)
+            INSERT INTO swarm_requests (message_ts, status)
             VALUES (%s, 'discarded')
-            ON CONFLICT (id) DO UPDATE
+            ON CONFLICT (message_ts) DO UPDATE
             SET status = 'discarded', updated_at = CURRENT_TIMESTAMP
             """,
             (message_ts,)
@@ -373,9 +373,9 @@ def handle_reopen_swarm(ack, body, client):
         cur = conn.cursor()
         cur.execute(
             """
-            INSERT INTO swarm_requests (id, status)
+            INSERT INTO swarm_requests (message_ts, status)
             VALUES (%s, 'reopened')
-            ON CONFLICT (id) DO UPDATE
+            ON CONFLICT (message_ts) DO UPDATE
             SET status = 'reopened', updated_at = CURRENT_TIMESTAMP
             """,
             (message_ts,)
