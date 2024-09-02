@@ -215,30 +215,33 @@ def handle_resolve_button(ack, body, client):
     channel_id = body["channel"]["id"]
     message_ts = body["message"]["ts"]
 
-    # Unpin the message and update it with a resolved note
+    # Unpin the message and update it with a resolved note, removing the buttons
     try:
         client.pins_remove(channel=channel_id, timestamp=message_ts)
+        updated_blocks = [
+            block for block in body["message"]["blocks"] if block["type"] != "actions"
+        ] + [
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": f"Swarm request resolved by <@{user_id}>."}
+            },
+            {
+                "type": "actions",
+                "elements": [
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "Re-Open Swarm"},
+                        "style": "primary",
+                        "value": "reopen",
+                        "action_id": "reopen_button"
+                    }
+                ]
+            }
+        ]
         client.chat_update(
             channel=channel_id,
             ts=message_ts,
-            blocks=body["message"]["blocks"] + [
-                {
-                    "type": "section",
-                    "text": {"type": "mrkdwn", "text": f"Swarm request resolved by <@{user_id}>."}
-                },
-                {
-                    "type": "actions",
-                    "elements": [
-                        {
-                            "type": "button",
-                            "text": {"type": "plain_text", "text": "Re-Open Swarm"},
-                            "style": "primary",
-                            "value": "reopen",
-                            "action_id": "reopen_button"
-                        }
-                    ]
-                }
-            ]
+            blocks=updated_blocks
         )
     except SlackApiError as e:
         logging.error(f"Error resolving swarm request: {e.response['error']}")
@@ -251,30 +254,33 @@ def handle_discard_button(ack, body, client):
     channel_id = body["channel"]["id"]
     message_ts = body["message"]["ts"]
 
-    # Unpin the message and update it with a discarded note
+    # Unpin the message and update it with a discarded note, removing the buttons
     try:
         client.pins_remove(channel=channel_id, timestamp=message_ts)
+        updated_blocks = [
+            block for block in body["message"]["blocks"] if block["type"] != "actions"
+        ] + [
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": f"Swarm request discarded by <@{user_id}>."}
+            },
+            {
+                "type": "actions",
+                "elements": [
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "Re-Open Swarm"},
+                        "style": "primary",
+                        "value": "reopen",
+                        "action_id": "reopen_button"
+                    }
+                ]
+            }
+        ]
         client.chat_update(
             channel=channel_id,
             ts=message_ts,
-            blocks=body["message"]["blocks"] + [
-                {
-                    "type": "section",
-                    "text": {"type": "mrkdwn", "text": f"Swarm request discarded by <@{user_id}>."}
-                },
-                {
-                    "type": "actions",
-                    "elements": [
-                        {
-                            "type": "button",
-                            "text": {"type": "plain_text", "text": "Re-Open Swarm"},
-                            "style": "primary",
-                            "value": "reopen",
-                            "action_id": "reopen_button"
-                        }
-                    ]
-                }
-            ]
+            blocks=updated_blocks
         )
     except SlackApiError as e:
         logging.error(f"Error discarding swarm request: {e.response['error']}")
