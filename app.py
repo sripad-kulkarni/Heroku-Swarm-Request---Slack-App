@@ -192,7 +192,7 @@ def handle_modal_submission(ack, body, view, client):
                         },
                         {
                             "type": "mrkdwn", 
-                            "text": "*Opened By:*\n" + user_name
+                            "text": f"*Opened By: <@{user_id}>*\n"
                         }
 
                     ]
