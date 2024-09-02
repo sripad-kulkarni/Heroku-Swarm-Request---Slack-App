@@ -146,14 +146,13 @@ def handle_modal_submission(ack, body, view, client):
         result = client.chat_postMessage(
             channel=channel_id,
             blocks=[
-                # Header block to mimic attachment title
+                # Header block
                 {
                     "type": "section",
                     "block_id": "header-block",
                     "text": {
-                        "type": "plain_text",
-                        "text": "New Swarm Request",
-                        "emoji": True
+                        "type": "mrkdwn",
+                        "text": "*New Swarm Request*",
                     },
                     "accessory": {
                         "type": "image",
@@ -239,6 +238,7 @@ def handle_modal_submission(ack, body, view, client):
         client.pins_add(channel=channel_id, timestamp=result["ts"])
     except SlackApiError as e:
         logging.error(f"Error posting message: {e.response['error']}")
+
 
     
     # Store the form data in the database
