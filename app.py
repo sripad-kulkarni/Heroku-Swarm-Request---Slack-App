@@ -146,49 +146,94 @@ def handle_modal_submission(ack, body, view, client):
         result = client.chat_postMessage(
             channel=channel_id,
             blocks=[
+                # Header block
+                {
+                    "type": "header",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "New Swarm Request",
+                        "emoji": True
+                    }
+                },
+                # Section with fields
                 {
                     "type": "section",
-                    "block_id": "swarm_request_section",
+                    "block_id": "details-section",
+                    "fields": [
+                        {
+                            "type": "mrkdwn",
+                            "text": "*Ticket:*\n" + ticket
+                        },
+                        {
+                            "type": "mrkdwn",
+                            "text": "*Entitlement:*\n" + entitlement
+                        },
+                        {
+                            "type": "mrkdwn",
+                            "text": "*Skill Group:*\n" + skill_group
+                        },
+                        {
+                            "type": "mrkdwn",
+                            "text": "*Support Tier:*\n" + support_tier
+                        },
+                        {
+                            "type": "mrkdwn",
+                            "text": "*Priority:*\n" + priority
+                        }
+                    ]
+                },
+                # Divider block
+                {
+                    "type": "divider"
+                },
+                # Section with detailed description
+                {
+                    "type": "section",
+                    "block_id": "description-section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": f"*New Swarm Request*\n"
-                                f"*Ticket:* {ticket}\n"
-                                f"*Entitlement:* {entitlement}\n"
-                                f"*Skill Group:* {skill_group}\n"
-                                f"*Support Tier:* {support_tier}\n"
-                                f"*Priority:* {priority}\n"
-                                f"*Issue Description:* {issue_description}\n"
-                                f"*Help Required:* {help_required}"
+                        "text": "*Issue Description:*\n" + issue_description
                     }
                 },
                 {
+                    "type": "section",
+                    "block_id": "help-required-section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": "*Help Required:*\n" + help_required
+                    }
+                },
+                # Actions block
+                {
                     "type": "actions",
-                    "block_id": "swarm_actions",
+                    "block_id": "actions-block",
                     "elements": [
                         {
                             "type": "button",
                             "text": {"type": "plain_text", "text": "Resolve Swarm"},
                             "style": "primary",
-                            "value": f"resolve:{ticket}",
+                            "value": "resolve",
                             "action_id": "resolve_button"
                         },
                         {
                             "type": "button",
                             "text": {"type": "plain_text", "text": "Discard Swarm"},
                             "style": "danger",
-                            "value": f"discard:{ticket}",
+                            "value": "discard",
                             "action_id": "discard_button"
                         }
                     ]
                 }
             ],
             text="New Swarm Request",
+            user=user_id,
             unfurl_links=True
         )
         # Pin the message to the channel
         client.pins_add(channel=channel_id, timestamp=result["ts"])
     except SlackApiError as e:
         logging.error(f"Error posting message: {e.response['error']}")
+
     
     # Store the form data in the database
     conn = get_db_connection()
