@@ -51,10 +51,10 @@ def handle_swarm_request(ack, body, client):
                         "action_id": "entitlement_select",
                         "placeholder": {"type": "plain_text", "text": "Select Entitlement"},
                         "options": [
-                            {"text": {"type": "plain_text", "text": "Enterprise Signature"}, "value": "enterprise_signature"},
-                            {"text": {"type": "plain_text", "text": "Enterprise Premier"}, "value": "enterprise_premier"},
-                            {"text": {"type": "plain_text", "text": "Enterprise Standard"}, "value": "enterprise_standard"},
-                            {"text": {"type": "plain_text", "text": "Online Customer"}, "value": "online_customer"}
+                            {"text": {"type": "plain_text", "text": "Enterprise Signature"}, "value": "Enterprise Signature"},
+                            {"text": {"type": "plain_text", "text": "Enterprise Premier"}, "value": "Enterprise Premier"},
+                            {"text": {"type": "plain_text", "text": "Enterprise Standard"}, "value": "Enterprise Standard"},
+                            {"text": {"type": "plain_text", "text": "Online Customer"}, "value": "Online Customer"}
                         ]
                     },
                     "label": {"type": "plain_text", "text": "Entitlement"}
@@ -67,11 +67,11 @@ def handle_swarm_request(ack, body, client):
                         "action_id": "skill_group_select",
                         "placeholder": {"type": "plain_text", "text": "Select Skill Group"},
                         "options": [
-                            {"text": {"type": "plain_text", "text": "Data"}, "value": "data"},
-                            {"text": {"type": "plain_text", "text": "Runtime"}, "value": "runtime"},
-                            {"text": {"type": "plain_text", "text": "Platform/Web Services"}, "value": "platform_web_services"},
-                            {"text": {"type": "plain_text", "text": "Account Management"}, "value": "account_management"},
-                            {"text": {"type": "plain_text", "text": "Other"}, "value": "other"}
+                            {"text": {"type": "plain_text", "text": "Data"}, "value": "Data"},
+                            {"text": {"type": "plain_text", "text": "Runtime"}, "value": "Runtime"},
+                            {"text": {"type": "plain_text", "text": "Platform/Web Services"}, "value": "Platform/Web Services"},
+                            {"text": {"type": "plain_text", "text": "Account Management"}, "value": "Account Management"},
+                            {"text": {"type": "plain_text", "text": "Other"}, "value": "Other"}
                         ]
                     },
                     "label": {"type": "plain_text", "text": "Skill Group"}
@@ -84,8 +84,8 @@ def handle_swarm_request(ack, body, client):
                         "action_id": "support_tier_select",
                         "placeholder": {"type": "plain_text", "text": "Select Support Tier"},
                         "options": [
-                            {"text": {"type": "plain_text", "text": "High Complexity"}, "value": "high_complexity"},
-                            {"text": {"type": "plain_text", "text": "General Usage"}, "value": "general_usage"}
+                            {"text": {"type": "plain_text", "text": "High Complexity"}, "value": "High Complexity"},
+                            {"text": {"type": "plain_text", "text": "General Usage"}, "value": "General Usage"}
                         ]
                     },
                     "label": {"type": "plain_text", "text": "Support Tier"}
@@ -133,7 +133,7 @@ def handle_modal_submission(ack, body, view, client):
     entitlement = view["state"]["values"]["entitlement"]["entitlement_select"]["selected_option"]["value"]
     skill_group = view["state"]["values"]["skill_group"]["skill_group_select"]["selected_option"]["value"]
     support_tier = view["state"]["values"]["support_tier"]["support_tier_select"]["selected_option"]["value"]
-    priority = view["state"]["values"]["priority"]["priority_select"]["selected_option"]["value"]
+    priority = view["state"]["values"]["priority"]["priority_select"]["selected_option"]["text"]
     issue_description = view["state"]["values"]["issue_description"]["issue_description_input"]["value"]
     help_required = view["state"]["values"]["help_required"]["help_required_input"]["value"]
     
@@ -192,7 +192,7 @@ def handle_modal_submission(ack, body, view, client):
                         },
                         {
                             "type": "mrkdwn", 
-                            "text": f"*Opened By:*\n<@{user_id}>*\n"
+                            "text": f"*Opened By:*\n<@{user_id}>"
                         }
 
                     ]
