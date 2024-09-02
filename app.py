@@ -4,7 +4,6 @@ import psycopg2
 from slack_bolt import App
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
-from slack_sdk.models.blocks import SectionBlock, ActionsBlock, DividerBlock
 
 
 # Initialize the Slack app
@@ -404,7 +403,7 @@ def get_user_info(client, user_id):
 @app.event("app_home_opened")
 def app_home_opened(client, event):
     user_id = event["user"]
-    
+
     try:
         # Fetch user info to get the real name
         user_info = client.users_info(user=user_id)
@@ -427,21 +426,41 @@ def app_home_opened(client, event):
         # Prepare statistics for display
         total_requests, total_open, total_resolved, total_discarded = stats
 
-        # Build the statistics blocks
+        # Build the statistics blocks as dictionaries
         blocks = [
-            SectionBlock(
-                text={"type": "mrkdwn", "text": f"*Total Swarm Requests:* {total_requests}"}
-            ),
-            SectionBlock(
-                text={"type": "mrkdwn", "text": f"*Total Open Requests:* {total_open}"}
-            ),
-            SectionBlock(
-                text={"type": "mrkdwn", "text": f"*Total Resolved Requests:* {total_resolved}"}
-            ),
-            SectionBlock(
-                text={"type": "mrkdwn", "text": f"*Total Discarded Requests:* {total_discarded}"}
-            ),
-            DividerBlock(),
+            {
+                "type": "section",
+                "block_id": "total_swarm_requests",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*Total Swarm Requests:* {total_requests}"
+                }
+            },
+            {
+                "type": "section",
+                "block_id": "total_open_requests",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*Total Open Requests:* {total_open}"
+                }
+            },
+            {
+                "type": "section",
+                "block_id": "total_resolved_requests",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*Total Resolved Requests:* {total_resolved}"
+                }
+            },
+            {
+                "type": "section",
+                "block_id": "total_discarded_requests",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*Total Discarded Requests:* {total_discarded}"
+                }
+            },
+            {"type": "divider"}
         ]
 
         # Query to get the request counts by user
@@ -463,9 +482,14 @@ def app_home_opened(client, event):
                 user_name = user_id  # Fallback to user ID if name is not available
 
             blocks.append(
-                SectionBlock(
-                    text={"type": "mrkdwn", "text": f"{user_name}: {count} requests"}
-                )
+                {
+                    "type": "section",
+                    "block_id": f"user_{user_id}",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"{user_name}: {count} requests"
+                    }
+                }
             )
 
         # Update the App Home tab
