@@ -4,6 +4,9 @@ import psycopg2
 from slack_bolt import App
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
+from slack_sdk.models.blocks import SectionBlock, MarkdownTextObject, ActionsBlock, ContextBlock, DividerBlock
+from slack_sdk.models.blocks.elements import PlainTextObject, ButtonElement
+
 
 # Initialize the Slack app
 app = App(token=os.environ.get("SLACK_BOT_TOKEN"))
@@ -389,80 +392,94 @@ def handle_reopen_swarm(ack, body, client):
         logging.error(f"Error reopening swarm request: {e.response['error']}")
 
 
-@app.event("app_home_opened")
-def update_home_tab(client, event):
+def get_user_info(client, user_id):
     try:
-        # Get statistics for App Home
+        response = client.users_info(user=user_id)
+        return response['user']['real_name']
+    except SlackApiError as e:
+        logging.error(f"Error fetching user info: {e.response['error']}")
+        return user_id  # Return the user_id if fetching fails
+
+
+@app.event("app_home_opened")
+def app_home_opened(client, event):
+    user_id = event["user"]
+    
+    try:
+        # Fetch user info to get the real name
+        user_info = client.users_info(user=user_id)
+        user_name = user_info["user"]["real_name"]
+
+        # Query the database to get statistics
         conn = get_db_connection()
         cur = conn.cursor()
-        try:
-            cur.execute("SELECT COUNT(*) FROM swarm_requests")
-            total_requests = cur.fetchone()[0]
+        cur.execute("""
+            SELECT
+                COUNT(*) FILTER (WHERE status = 'open') AS total_open,
+                COUNT(*) FILTER (WHERE status = 'resolved') AS total_resolved,
+                COUNT(*) FILTER (WHERE status = 'discarded') AS total_discarded,
+                COUNT(*) AS total_requests
+            FROM swarm_requests
+        """)
+        stats = cur.fetchone()
+        conn.close()
 
-            cur.execute("SELECT COUNT(*) FROM swarm_requests WHERE status = 'resolved'")
-            total_resolved = cur.fetchone()[0]
+        # Prepare statistics for display
+        total_requests, total_open, total_resolved, total_discarded = stats
 
-            cur.execute("SELECT COUNT(*) FROM swarm_requests WHERE status = 'discarded'")
-            total_discarded = cur.fetchone()[0]
+        # Build the statistics blocks
+        blocks = [
+            SectionBlock(
+                text=MarkdownTextObject(text="*Total Swarm Requests:* {total_requests}".format(total_requests=total_requests))
+            ),
+            SectionBlock(
+                text=MarkdownTextObject(text="*Total Open Requests:* {total_open}".format(total_open=total_open))
+            ),
+            SectionBlock(
+                text=MarkdownTextObject(text="*Total Resolved Requests:* {total_resolved}".format(total_resolved=total_resolved))
+            ),
+            SectionBlock(
+                text=MarkdownTextObject(text="*Total Discarded Requests:* {total_discarded}".format(total_discarded=total_discarded))
+            ),
+            DividerBlock(),
+        ]
 
-            cur.execute("SELECT COUNT(*) FROM swarm_requests WHERE status = 'open'")
-            total_open = cur.fetchone()[0]
+        # Query to get the request counts by user
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT user_id, COUNT(*) FROM swarm_requests
+            GROUP BY user_id
+        """)
+        user_requests = cur.fetchall()
+        conn.close()
 
-            # Fetch user statistics
-            cur.execute("""
-                SELECT user_id, COUNT(*) AS requests_created
-                FROM swarm_requests
-                GROUP BY user_id
-            """)
-            user_stats = cur.fetchall()
+        # Add user request statistics blocks
+        for user_id, count in user_requests:
+            try:
+                user_info = client.users_info(user=user_id)
+                user_name = user_info["user"]["real_name"]
+            except SlackApiError:
+                user_name = user_id  # Fallback to user ID if name is not available
 
-            user_stats_blocks = []
-            for user_id, requests_created in user_stats:
-                # Replace user_id with display name if needed
-                display_name = user_id  # Adjust if you have a way to fetch display names
-                user_stats_blocks.append(
-                    {
-                        "type": "section",
-                        "text": {
-                            "type": "mrkdwn",
-                            "text": f"*{display_name}:*\nCreated {requests_created} requests"
-                        }
-                    }
+            blocks.append(
+                SectionBlock(
+                    text=MarkdownTextObject(text="{user_name}: {count} requests".format(user_name=user_name, count=count))
                 )
+            )
 
-        except Exception as e:
-            logging.error(f"Error fetching stats from database: {e}")
-            total_requests, total_resolved, total_discarded, total_open = 0, 0, 0
-            user_stats_blocks = []
-
-        finally:
-            cur.close()
-            conn.close()
-
-        # Publish the updated view
-        view = {
-            "type": "home",
-            "blocks": [
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": f"*Total Swarm Requests:*\n{total_requests}\n"
-                                f"*Total Open Requests:*\n{total_open}\n"
-                                f"*Total Resolved Requests:*\n{total_resolved}\n"
-                                f"*Total Discarded Requests:*\n{total_discarded}\n"
-                    }
-                },
-                *user_stats_blocks  # Add user statistics blocks
-            ]
-        }
-
+        # Update the App Home tab
         client.views_publish(
-            user_id=event["user"],
-            view=view
+            user_id=user_id,
+            view={
+                "type": "home",
+                "blocks": blocks
+            }
         )
+
     except SlackApiError as e:
-        logging.error(f"Error publishing home tab view: {e.response['error']}")
+        logging.error(f"Error opening app home: {e.response['error']}")
+
 
 # Start the app
 if __name__ == "__main__":
