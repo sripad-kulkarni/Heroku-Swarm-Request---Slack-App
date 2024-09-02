@@ -338,16 +338,17 @@ def handle_reopen_swarm(ack, body, client):
             text="The swarm request has been reopened and needs attention."
         )
 
-        # Update the original message to show the previous two buttons
         updated_blocks = [
             block for block in body["message"]["blocks"]
             if not (
                 (block.get("type") == "section" and
-                 "Swarm request resolved by" in block.get("text", {}).get("text", "")) or
+                 ("Swarm request resolved by" in block.get("text", {}).get("text", "") or
+                  "Swarm request discarded by" in block.get("text", {}).get("text", ""))) or
                 (block.get("type") == "actions" and
                  any(button.get("text", {}).get("text", "") == "Re-Open Swarm" for button in block.get("elements", [])))
             )
         ]
+
         
         updated_blocks.append(
             {
