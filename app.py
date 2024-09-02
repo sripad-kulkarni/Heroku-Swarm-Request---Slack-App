@@ -175,13 +175,6 @@ def handle_modal_submission(ack, body, view, client):
                             "style": "danger",
                             "value": "discard",
                             "action_id": "discard_button"
-                        },
-                        {
-                            "type": "button",
-                            "text": {"type": "plain_text", "text": "Re-Open Swarm"},
-                            "style": "danger",
-                            "value": "reopen",
-                            "action_id": "reopen_button"
                         }
                     ]
                 }
@@ -201,10 +194,10 @@ def handle_modal_submission(ack, body, view, client):
     try:
         cur.execute(
             """
-            INSERT INTO swarm_requests (ticket, entitlement, skill_group, support_tier, priority, issue_description, help_required, user_id, id, status)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO swarm_requests (ticket, entitlement, skill_group, support_tier, priority, issue_description, help_required, user_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """,
-            (ticket, entitlement, skill_group, support_tier, priority, issue_description, help_required, user_id, result["ts"], "open")
+            (ticket, entitlement, skill_group, support_tier, priority, issue_description, help_required, user_id)
         )
         conn.commit()
     except Exception as e:
@@ -215,192 +208,181 @@ def handle_modal_submission(ack, body, view, client):
 
 # Handle the "Resolve Swarm" button click
 @app.action("resolve_button")
-def handle_resolve_swarm(ack, body, client):
+def handle_resolve_button(ack, body, client):
     ack()
-
-    # Extract necessary information from the action
+    user_id = body["user"]["id"]
     channel_id = body["channel"]["id"]
     message_ts = body["message"]["ts"]
 
-    # Update the database to mark the request as resolved
-    conn = get_db_connection()
-    cur = conn.cursor()
     try:
-        cur.execute(
-            """
-            UPDATE swarm_requests SET status = %s WHERE id = %s
-            """,
-            ("resolved", message_ts)
-        )
-        conn.commit()
-    except Exception as e:
-        logging.error(f"Error updating database: {e}")
-    finally:
-        cur.close()
-        conn.close()
-
-    # Update the message in the channel
-    client.chat_update(
-        channel=channel_id,
-        ts=message_ts,
-        text="This swarm request has been resolved.",
-        blocks=[
+        # Remove the pin from the message
+        client.pins_remove(channel=channel_id, timestamp=message_ts)
+        
+        # Update the original message to reflect the resolved status
+        updated_blocks = [
+            block for block in body["message"]["blocks"] if block["type"] != "actions"
+        ] + [
             {
                 "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": "This swarm request has been resolved."
-                }
+                "text": {"type": "mrkdwn", "text": f"Swarm request resolved by <@{user_id}>."}
+            },
+            {
+                "type": "actions",
+                "elements": [
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "Re-Open Swarm"},
+                        "style": "primary",
+                        "value": "reopen",
+                        "action_id": "reopen_button"
+                    }
+                ]
             }
         ]
-    )
+        client.chat_update(
+            channel=channel_id,
+            ts=message_ts,
+            blocks=updated_blocks
+        )
+
+        # Update or insert the row in the database
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO swarm_requests (id, status)
+            VALUES (%s, 'resolved')
+            ON CONFLICT (id) DO UPDATE
+            SET status = 'resolved', updated_at = CURRENT_TIMESTAMP
+            """,
+            (message_ts,)
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+    except SlackApiError as e:
+        logging.error(f"Error resolving swarm request: {e.response['error']}")
 
 # Handle the "Discard Swarm" button click
 @app.action("discard_button")
-def handle_discard_swarm(ack, body, client):
+def handle_discard_button(ack, body, client):
     ack()
-
-    # Extract necessary information from the action
+    user_id = body["user"]["id"]
     channel_id = body["channel"]["id"]
     message_ts = body["message"]["ts"]
 
-    # Update the database to mark the request as discarded
-    conn = get_db_connection()
-    cur = conn.cursor()
     try:
-        cur.execute(
-            """
-            UPDATE swarm_requests SET status = %s WHERE id = %s
-            """,
-            ("discarded", message_ts)
-        )
-        conn.commit()
-    except Exception as e:
-        logging.error(f"Error updating database: {e}")
-    finally:
-        cur.close()
-        conn.close()
-
-    # Update the message in the channel
-    client.chat_update(
-        channel=channel_id,
-        ts=message_ts,
-        text="This swarm request has been discarded.",
-        blocks=[
+        # Remove the pin from the message
+        client.pins_remove(channel=channel_id, timestamp=message_ts)
+        
+        # Update the original message to reflect the discarded status
+        updated_blocks = [
+            block for block in body["message"]["blocks"] if block["type"] != "actions"
+        ] + [
             {
                 "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": "This swarm request has been discarded."
-                }
+                "text": {"type": "mrkdwn", "text": f"Swarm request discarded by <@{user_id}>."}
+            },
+            {
+                "type": "actions",
+                "elements": [
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "Re-Open Swarm"},
+                        "style": "primary",
+                        "value": "reopen",
+                        "action_id": "reopen_button"
+                    }
+                ]
             }
         ]
-    )
+        client.chat_update(
+            channel=channel_id,
+            ts=message_ts,
+            blocks=updated_blocks
+        )
+
+        # Update or insert the row in the database
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO swarm_requests (id, status)
+            VALUES (%s, 'discarded')
+            ON CONFLICT (id) DO UPDATE
+            SET status = 'discarded', updated_at = CURRENT_TIMESTAMP
+            """,
+            (message_ts,)
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+    except SlackApiError as e:
+        logging.error(f"Error discarding swarm request: {e.response['error']}")
 
 # Handle the "Re-Open Swarm" button click
 @app.action("reopen_button")
 def handle_reopen_swarm(ack, body, client):
     ack()
-
-    # Extract necessary information from the action
+    user_id = body["user"]["id"]
     channel_id = body["channel"]["id"]
     message_ts = body["message"]["ts"]
 
-    # Update the database to mark the request as reopened
-    conn = get_db_connection()
-    cur = conn.cursor()
     try:
+        # Post a new message in the thread indicating the swarm request has been reopened
+        client.chat_postMessage(
+            channel=channel_id,
+            thread_ts=message_ts,
+            text="The swarm request has been reopened and needs attention."
+        )
+
+        # Update the original message to show the previous two buttons
+        updated_blocks = [
+            block for block in body["message"]["blocks"]
+            if not (
+                (block.get("type") == "section" and
+                 "Swarm request resolved by" in block.get("text", {}).get("text", "")) or
+                (block.get("type") == "actions" and
+                 any(button.get("text", {}).get("text", "") == "Re-Open Swarm" for button in block.get("elements", [])))
+            )
+        ]
+        
+        updated_blocks.append(
+            {
+                "type": "actions",
+                "elements": [
+                    {"type": "button", "text": {"type": "plain_text", "text": "Resolve Swarm"}, "style": "primary", "action_id": "resolve_button"},
+                    {"type": "button", "text": {"type": "plain_text", "text": "Discard Swarm"}, "style": "danger", "action_id": "discard_button"}
+                ]
+            }
+        )
+
+        client.chat_update(
+            channel=channel_id,
+            ts=message_ts,
+            blocks=updated_blocks
+        )
+
+        # Update or insert the row in the database
+        conn = get_db_connection()
+        cur = conn.cursor()
         cur.execute(
             """
-            UPDATE swarm_requests SET status = %s WHERE id = %s
+            INSERT INTO swarm_requests (id, status)
+            VALUES (%s, 'reopened')
+            ON CONFLICT (id) DO UPDATE
+            SET status = 'reopened', updated_at = CURRENT_TIMESTAMP
             """,
-            ("open", message_ts)
+            (message_ts,)
         )
         conn.commit()
-    except Exception as e:
-        logging.error(f"Error updating database: {e}")
-    finally:
         cur.close()
         conn.close()
 
-    # Post a new message in the thread indicating the swarm request is reopened
-    client.chat_postMessage(
-        channel=channel_id,
-        thread_ts=message_ts,
-        text="The swarm request has been reopened and needs attention."
-    )
-
-    # Update the original message
-    client.chat_update(
-        channel=channel_id,
-        ts=message_ts,
-        text="This swarm request has been reopened and needs attention.",
-        blocks=[
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": "This swarm request has been reopened and needs attention."
-                }
-            }
-        ]
-    )
-
-# Handler for app home
-@app.event("app_home_opened")
-def handle_app_home_opened(event, client):
-    user_id = event["user"]
-
-    # Fetch user info
-    user_info = client.users_info(user=user_id)
-    user_name = user_info["user"]["real_name"]
-
-    # Fetch statistics from the database
-    conn = get_db_connection()
-    cur = conn.cursor()
-    try:
-        cur.execute("SELECT COUNT(*) FROM swarm_requests WHERE status = 'open'")
-        open_requests = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM swarm_requests WHERE status = 'resolved'")
-        resolved_requests = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM swarm_requests WHERE status = 'discarded'")
-        discarded_requests = cur.fetchone()[0]
-        total_requests = open_requests + resolved_requests + discarded_requests
-    except Exception as e:
-        logging.error(f"Error fetching statistics from database: {e}")
-        open_requests = resolved_requests = discarded_requests = total_requests = 0
-    finally:
-        cur.close()
-        conn.close()
-
-    # Post the app home view
-    client.views_publish(
-        user_id=user_id,
-        view={
-            "type": "home",
-            "blocks": [
-                {
-                    "type": "section",
-                    "block_id": "welcome",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": f"Welcome, {user_name}!"
-                    }
-                },
-                {
-                    "type": "section",
-                    "block_id": "stats",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": f"*Total Swarm Requests:* {total_requests}\n"
-                                f"*Total Open Requests:* {open_requests}\n"
-                                f"*Total Resolved Requests:* {resolved_requests}\n"
-                                f"*Total Discarded Requests:* {discarded_requests}"
-                    }
-                }
-            ]
-        }
-    )
+    except SlackApiError as e:
+        logging.error(f"Error reopening swarm request: {e.response['error']}")
 
 # Start the app
 if __name__ == "__main__":
