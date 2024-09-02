@@ -365,6 +365,9 @@ def handle_reopen_swarm(ack, body, client):
             blocks=updated_blocks
         )
 
+        client.pins_add(channel=channel_id, timestamp=message_ts)
+
+
         # Update or insert the row in the database
         conn = get_db_connection()
         cur = conn.cursor()
